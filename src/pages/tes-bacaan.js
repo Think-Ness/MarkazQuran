@@ -123,12 +123,16 @@ export async function renderTesBacaan(container) {
           
           <div style="margin-top:20px;border-top:1px solid var(--border);padding-top:16px;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
-              <h4 style="margin:0;">Penilaian Evaluasi</h4>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <h4 style="margin:0;">Penilaian Evaluasi</h4>
+                <button type="button" class="btn btn-outline btn-sm" style="padding:2px 8px;font-size:10px;height:auto;min-height:auto;border-radius:12px;" onclick="document.getElementById('infoRentangNilai').style.display=document.getElementById('infoRentangNilai').style.display==='none'?'block':'none'">&#9432; Panduan Nilai</button>
+              </div>
               <select id="tModePenilaian" style="width:auto;font-size:12px;padding:4px 8px;border-radius:6px;border:1px solid var(--border);">
                 <option value="nilai">Input Nilai (0-100)</option>
                 <option value="kesalahan">Input Jml Kesalahan</option>
               </select>
             </div>
+            <div id="infoRentangNilai" style="display:none;background:var(--surface2);padding:12px;border-radius:8px;font-size:12px;margin-bottom:12px;border:1px solid var(--border);"></div>
             <div id="wrapIndikator" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;background:var(--surface2);padding:16px;border-radius:8px;">
               <!-- Input indikator di-generate di sini -->
             </div>
@@ -563,6 +567,20 @@ function openAddTes(editData = null) {
     document.getElementById('tTanggal').value = new Date().toISOString().slice(0, 10);
     document.getElementById('tCatatan').value = '';
   }
+
+  // Render Rentang Nilai Info
+  const rentangHtml = (allConfig.rentangNilai || []).map(r => 
+    `<div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--border);padding:4px 0;">
+      <span style="font-weight:600;color:var(--primary);">${r.min} - ${r.max}</span>
+      <span style="font-weight:600;">${r.label}</span>
+      <span style="color:var(--text-muted);flex:1;text-align:right;">${r.ket}</span>
+    </div>`
+  ).join('');
+  document.getElementById('infoRentangNilai').innerHTML = `
+    <div style="margin-bottom:6px;font-weight:600;">Panduan Kategori Nilai:</div>
+    ${rentangHtml}
+    <div style="margin-top:6px;font-size:10px;color:var(--text-muted);">* Jika Mode Kesalahan: 1 Kesalahan Jaliy = -15, Khafiy = -5.</div>
+  `;
 
   // Tentukan mode berdasarkan data jika edit
   const inds = allConfig.indikatorChecklist || [];
