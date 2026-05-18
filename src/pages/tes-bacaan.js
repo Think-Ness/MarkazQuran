@@ -738,8 +738,18 @@ function printRekapRemedial() {
           @page { margin: 1.5cm; }
         }
       </style>
+      <script>
+        window.addEventListener('afterprint', () => {
+          window.close();
+        });
+        window.onload = () => {
+          setTimeout(() => {
+            window.print();
+          }, 500);
+        };
+      </script>
     </head>
-    <body onload="window.print(); window.close();">
+    <body>
       <div class="header">
         <h1 class="logo-text">MARKAZ QUR'AN</h1>
         <p class="sub-text">Sistem Monitoring & Pembinaan Tahsin Terpadu</p>

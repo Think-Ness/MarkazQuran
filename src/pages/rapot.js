@@ -1,14 +1,14 @@
-import { getRapot,saveRapot,deleteRapot,getSantri,getTesBacaan,getHafalan } from '../api.js';
+import { getRapot,saveRapot,deleteRapot,getSantri,getTesBacaan,getHafalan,getConfig } from '../api.js';
 import { getNilaiKategori, fmtDate, showToast } from '../utils.js';
 
-let allRapot=[],allSantri=[],allTes=[],allHafalan=[],activeTab='list';
+let allRapot=[],allSantri=[],allTes=[],allHafalan=[],activeTab='list',allConfig={};
 
 export async function renderRapot(container) {
   container.innerHTML = `
     <div class="page-header">
       <div><h2>Rapot Santri</h2><p>Generate, lihat, dan cetak rapot per santri</p></div>
       <div class="flex gap-8 no-print">
-        <button class="btn btn-primary" id="btnGen">+ Buat Rapot</button>
+        <button class="btn btn-primary" id="btnGen" style="display:flex;align-items:center;gap:6px;"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Buat Rapot</button>
       </div>
     </div>
 
@@ -25,7 +25,7 @@ export async function renderRapot(container) {
             <div class="search-box"><span class="search-icon">&#128269;</span>
               <input type="text" id="srchRapot" placeholder="Cari stambuk / nama / periode...">
             </div>
-            <button class="btn btn-outline btn-sm" id="btnRefresh">&#8635; Refresh</button>
+            <button class="btn btn-outline btn-sm" id="btnRefresh" style="display:flex;align-items:center;gap:6px;height:38px;"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg> Refresh</button>
           </div>
         </div>
       </div>
@@ -43,8 +43,8 @@ export async function renderRapot(container) {
     <!-- PREVIEW -->
     <div id="panelPreview" style="display:none;">
       <div class="flex gap-12 mb-16 no-print" style="margin-bottom:16px;">
-        <button class="btn btn-primary" onclick="window.print()">&#128438; Cetak / Simpan PDF</button>
-        <button class="btn btn-outline" id="btnBackList">Kembali ke Daftar</button>
+        <button class="btn btn-primary" onclick="window.print()" style="display:flex;align-items:center;gap:6px;"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Cetak / Simpan PDF</button>
+        <button class="btn btn-outline" id="btnBackList" style="display:flex;align-items:center;gap:6px;"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg> Kembali ke Daftar</button>
       </div>
       <div id="rapotPreviewCard" style="background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:32px;max-width:760px;margin:0 auto;">
         <p class="no-data">Pilih rapot dari daftar untuk ditampilkan.</p>
@@ -161,8 +161,8 @@ function renderRapotTable(data) {
       <td style="font-size:12px;">${fmtDate(r.Tanggal)}</td>
       <td>
         <div class="flex gap-8">
-          <button class="btn btn-primary btn-sm" data-prev="${r.ID}">&#128065; Preview</button>
-          <button class="btn btn-danger  btn-sm" data-del="${r.ID}">&#128465;</button>
+          <button class="btn btn-primary btn-sm" style="display:inline-flex;align-items:center;gap:4px;" data-prev="${r.ID}"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg> Preview</button>
+          <button class="btn btn-danger btn-sm" style="display:inline-flex;align-items:center;justify-content:center;height:24px;width:24px;" data-del="${r.ID}"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></button>
         </div>
       </td>
     </tr>`).join('');

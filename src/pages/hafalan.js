@@ -9,7 +9,7 @@ export async function renderHafalan(container) {
   container.innerHTML = `
     <div class="page-header">
       <div><h2>Monitoring Hafalan</h2><p>Tracking hafalan Al-Quran per santri per surah</p></div>
-      <button class="btn btn-primary" id="btnAdd">+ Input Hafalan</button>
+      <button class="btn btn-primary" id="btnAdd" style="display:flex;align-items:center;gap:6px;"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Input Hafalan</button>
     </div>
     <div class="stat-grid" id="summaryCards" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin-bottom:20px;"></div>
     <div class="card mb-16" style="margin-bottom:16px;">
@@ -19,7 +19,7 @@ export async function renderHafalan(container) {
           <select id="flSantri" style="width:180px;"><option value="">Semua Santri</option></select>
           <select id="flStatus" style="width:130px;"><option value="">Semua Status</option><option value="Selesai">Selesai</option><option value="Proses">Proses</option><option value="Belum">Belum</option></select>
           <select id="flJuz" style="width:110px;"><option value="">Semua Juz</option></select>
-          <button class="btn btn-outline btn-sm" id="btnRefresh">&#8635;</button>
+          <button class="btn btn-outline btn-sm" id="btnRefresh" style="display:flex;align-items:center;justify-content:center;height:38px;width:38px;"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg></button>
         </div>
       </div>
     </div>
@@ -287,8 +287,8 @@ function showProgress(stambuk) {
         <td style="font-size:12px;max-width:150px;overflow:hidden;text-overflow:ellipsis;">${h.Catatan||'-'}</td>
         <td>
           <div class="flex gap-4">
-            <button class="btn btn-outline btn-sm" data-upd="${h.ID}" title="Edit">&#9998;</button>
-            <button class="btn btn-danger btn-sm" data-del="${h.ID}" title="Hapus">&#128465;</button>
+            <button class="btn btn-outline btn-sm" style="display:inline-flex;align-items:center;justify-content:center;height:24px;width:24px;" data-upd="${h.ID}" title="Edit"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
+            <button class="btn btn-danger btn-sm" style="display:inline-flex;align-items:center;justify-content:center;height:24px;width:24px;" data-del="${h.ID}" title="Hapus"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></button>
           </div>
         </td>
       </tr>`).join('')}</tbody>

@@ -7,7 +7,7 @@ export async function renderSantri(container) {
   container.innerHTML = `
     <div class="page-header">
       <div><h2>Data Santri</h2><p>Kelola master data seluruh santri</p></div>
-      <button class="btn btn-primary" id="btnAddSantri">+ Tambah Santri</button>
+      <button class="btn btn-primary" id="btnAddSantri" style="display:flex;align-items:center;gap:6px;"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Tambah Santri</button>
     </div>
     <div class="card mb-16" style="margin-bottom:16px;">
       <div class="card-body" style="padding:14px 20px;">
@@ -22,7 +22,7 @@ export async function renderSantri(container) {
             <option value="Aktif">Aktif</option>
             <option value="Tidak Aktif">Tidak Aktif</option>
           </select>
-          <button class="btn btn-outline btn-sm" id="btnRefresh">&#8635; Refresh</button>
+          <button class="btn btn-outline btn-sm" id="btnRefresh" style="display:flex;align-items:center;gap:6px;height:38px;"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg> Refresh</button>
         </div>
       </div>
     </div>
@@ -114,8 +114,8 @@ function renderTable(data) {
       <td><span class="badge badge-${s.Status==='Aktif'?'aktif':'nonaktif'}">${s.Status||'Aktif'}</span></td>
       <td>
         <div class="flex gap-8" style="justify-content:center;">
-          <button class="btn btn-outline btn-sm" data-edit="${s.STambuk}">&#9998; Edit</button>
-          <button class="btn btn-danger  btn-sm" data-del="${s.STambuk}" data-nama="${s.Nama}">&#128465;</button>
+          <button class="btn btn-outline btn-sm" style="display:inline-flex;align-items:center;gap:4px;" data-edit="${s.STambuk}"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg> Edit</button>
+          <button class="btn btn-danger btn-sm" style="display:inline-flex;align-items:center;justify-content:center;height:24px;width:24px;" data-del="${s.STambuk}" data-nama="${s.Nama}"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></button>
         </div>
       </td>
     </tr>`).join('');
