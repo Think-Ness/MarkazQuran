@@ -475,7 +475,6 @@ function showProgress(pesertaId, tipe) {
   document.getElementById('progressSection').style.display = 'block';
   document.getElementById('progressSection').scrollIntoView({ behavior: 'smooth' });
 }
-}
 
 function lanjutPostTest(id) {
   const t = allTes.find(x => x.ID === id);
