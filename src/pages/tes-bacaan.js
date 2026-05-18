@@ -459,7 +459,13 @@ function renderIndikatorInputs(editData) {
   const wrapInd = document.getElementById('wrapIndikator');
   
   wrapInd.innerHTML = inds.map((ind, i) => {
-    const val = editData ? (editData[`Ind${i+1}`] || '') : '';
+    let val = '';
+    if (editData) {
+      val = editData[`Ind${i+1}`] !== undefined ? editData[`Ind${i+1}`] : (mode === 'kesalahan' ? '0' : '');
+    } else {
+      val = mode === 'kesalahan' ? '0' : '';
+    }
+    
     if (mode === 'kesalahan') {
       const isJ = isJaliy(ind.label);
       return `
@@ -590,7 +596,7 @@ function openAddTes(editData = null) {
     const isKesalahan = vals.some(v => v > 0 && v <= 20) && !vals.some(v => v > 50);
     document.getElementById('tModePenilaian').value = isKesalahan ? 'kesalahan' : 'nilai';
   } else {
-    document.getElementById('tModePenilaian').value = 'nilai';
+    document.getElementById('tModePenilaian').value = 'kesalahan';
   }
 
   renderIndikatorInputs(editData);
