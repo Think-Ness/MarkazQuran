@@ -253,23 +253,30 @@ function getDashboardStats() {
 }
 
 // ── Config ────────────────────────────────────────────────────
+// ── Config ────────────────────────────────────────────────────
 function defaultConfig() {
   return {
     namaLembaga  : "Markaz Qur'an",
     periodeAktif : '',
-    nilaiMinLulus: 70,
+    nilaiMinLulus: 71,
     rentangNilai : [
-      {min:90,max:100,label:'Sangat Baik',ket:'Lancar & tajwid tepat'},
-      {min:80,max:89, label:'Baik',        ket:'Sedikit kesalahan'},
-      {min:70,max:79, label:'Cukup',       ket:'Masih perlu bimbingan'},
-      {min:0, max:69, label:'Perlu Pembinaan', ket:'Banyak kesalahan'}
+      {min:91,max:100,label:'Mumtaz',       ket:'Sangat Baik / Tidak ada salah'},
+      {min:81,max:90, label:'Jayyid Jiddan',ket:'Baik Sekali / Sedikit salah'},
+      {min:71,max:80, label:'Jayyid',       ket:'Baik / Beberapa salah'},
+      {min:51,max:70, label:'Maqbul',       ket:'Cukup / Perlu bimbingan'},
+      {min:0, max:50, label:'Rasib',        ket:'Kurang / Wajib remedial'}
     ],
     indikatorChecklist: [
-      {key:'Makhraj',      label:'Makharijul Huruf'},
-      {key:'PanjangPendek',label:'Panjang Pendek (Mad)'},
-      {key:'Ghunnah',      label:'Tajwid Ghunnah'},
-      {key:'Kelancaran',   label:'Kelancaran'},
-      {key:'WaqafIbtida',  label:'Waqaf & Ibtida'}
+      {key:'Ind1',  label:'Kelancaran'},
+      {key:'Ind2',  label:'Makharij Huruf'},
+      {key:'Ind3',  label:'Sifat Huruf'},
+      {key:'Ind4',  label:"Mad Thabi'i"},
+      {key:'Ind5',  label:'Mad lbh 2 harakat'},
+      {key:'Ind6',  label:'Dengungan'},
+      {key:'Ind7',  label:"Waqf & Ibtida'"},
+      {key:'Ind8',  label:'Gharib'},
+      {key:'Ind9',  label:'Keindahan'},
+      {key:'Ind10', label:'Lain-Lain'}
     ]
   };
 }

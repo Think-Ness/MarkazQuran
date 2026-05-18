@@ -122,7 +122,13 @@ export async function renderTesBacaan(container) {
           </div>
           
           <div style="margin-top:20px;border-top:1px solid var(--border);padding-top:16px;">
-            <h4 style="margin-bottom:12px;">Penilaian Indikator Evaluasi (0-100)</h4>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+              <h4 style="margin:0;">Penilaian Evaluasi</h4>
+              <select id="tModePenilaian" style="width:auto;font-size:12px;padding:4px 8px;border-radius:6px;border:1px solid var(--border);">
+                <option value="nilai">Input Nilai (0-100)</option>
+                <option value="kesalahan">Input Jml Kesalahan</option>
+              </select>
+            </div>
             <div id="wrapIndikator" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;background:var(--surface2);padding:16px;border-radius:8px;">
               <!-- Input indikator di-generate di sini -->
             </div>
@@ -171,6 +177,10 @@ export async function renderTesBacaan(container) {
 
   document.getElementById('tTipe').onchange     = () => {
     if(ssPesertaTes) ssPesertaTes.setOptions(buildPesertaOpts(document.getElementById('tTipe').value));
+  };
+  document.getElementById('tModePenilaian').onchange = () => {
+    renderIndikatorInputs(null);
+    calculateNilaiAkhir();
   };
   document.getElementById('tesSaveBtn').onclick = saveTes;
 }
@@ -431,24 +441,91 @@ function filterRekap() {
 
 
 // ── Add Tes ───────────────────────────────────────────────────
-function calculateNilaiAkhir() {
+function isJaliy(label) {
+  const l = label.toLowerCase();
+  return l.includes('lancar') || l.includes('makhraj') || l.includes('makharij') || l.includes('sifat') || l.includes('jaliy');
+}
+
+function renderIndikatorInputs(editData) {
+  const mode = document.getElementById('tModePenilaian').value;
   const inds = allConfig.indikatorChecklist || [];
-  let sum = 0, count = 0;
+  const wrapInd = document.getElementById('wrapIndikator');
+  
+  wrapInd.innerHTML = inds.map((ind, i) => {
+    const val = editData ? (editData[`Ind${i+1}`] || '') : '';
+    if (mode === 'kesalahan') {
+      const isJ = isJaliy(ind.label);
+      return `
+      <div style="display:flex;flex-direction:column;gap:4px;">
+        <label style="font-size:11px;font-weight:600;display:flex;justify-content:space-between;">
+          <span>${ind.label}</span>
+          <span style="color:var(--text-muted);font-weight:normal;">${isJ?'Jaliy (-15)':'Khafiy (-5)'}</span>
+        </label>
+        <div style="display:flex; gap:4px;">
+          <input type="number" id="indInput_${i}" min="0" placeholder="Jml Salah" style="padding:6px 10px; flex:1;" value="${val}">
+          <select id="indTipe_${i}" style="width:75px; padding:6px; font-size:11px; border:1px solid var(--border); border-radius:4px;">
+            <option value="15" ${isJ?'selected':''}>Jaliy</option>
+            <option value="5" ${!isJ?'selected':''}>Khafiy</option>
+          </select>
+        </div>
+      </div>`;
+    } else {
+      return `
+      <div style="display:flex;flex-direction:column;gap:4px;">
+        <label style="font-size:12px;font-weight:600;">${ind.label}</label>
+        <input type="number" id="indInput_${i}" min="0" max="100" placeholder="0-100" style="padding:6px 10px;" value="${val}">
+      </div>`;
+    }
+  }).join('');
+
   inds.forEach((ind, i) => {
     const el = document.getElementById(`indInput_${i}`);
-    if(el && el.value !== '') {
-      sum += Number(el.value);
-      count++;
-    }
+    if(el) el.addEventListener('input', calculateNilaiAkhir);
+    const sel = document.getElementById(`indTipe_${i}`);
+    if(sel) sel.addEventListener('change', calculateNilaiAkhir);
   });
-  const avg = count === 0 ? 0 : Math.round(sum / count);
-  document.getElementById('tNilaiAkhir').textContent = avg;
-  if(avg > 0) {
-    const k = getNilaiKategori(avg, allConfig.rentangNilai);
+}
+
+function calculateNilaiAkhir() {
+  const mode = document.getElementById('tModePenilaian').value;
+  const inds = allConfig.indikatorChecklist || [];
+  let finalAvg = 0;
+  let hasInput = false;
+
+  if (mode === 'kesalahan') {
+    let totalDeduction = 0;
+    inds.forEach((ind, i) => {
+      const el = document.getElementById(`indInput_${i}`);
+      const sel = document.getElementById(`indTipe_${i}`);
+      if (el && el.value !== '') {
+        hasInput = true;
+        const salah = Number(el.value);
+        const bobot = sel ? Number(sel.value) : (isJaliy(ind.label) ? 15 : 5);
+        totalDeduction += (salah * bobot);
+      }
+    });
+    finalAvg = Math.max(0, 100 - totalDeduction);
+  } else {
+    let sum = 0, count = 0;
+    inds.forEach((ind, i) => {
+      const el = document.getElementById(`indInput_${i}`);
+      if(el && el.value !== '') {
+        hasInput = true;
+        sum += Number(el.value);
+        count++;
+      }
+    });
+    finalAvg = count === 0 ? 0 : Math.round(sum / count);
+  }
+
+  if(hasInput) {
+    document.getElementById('tNilaiAkhir').textContent = finalAvg;
+    const k = getNilaiKategori(finalAvg, allConfig.rentangNilai);
     const lbl = document.getElementById('tKategoriLabel');
     lbl.textContent = k.label;
     lbl.style.color = k.cls.includes('sb')||k.cls.includes('b') ? 'var(--primary)' : 'var(--danger)';
   } else {
+    document.getElementById('tNilaiAkhir').textContent = '0';
     document.getElementById('tKategoriLabel').textContent = '-';
   }
 }
@@ -484,21 +561,17 @@ function openAddTes(editData = null) {
     document.getElementById('tCatatan').value = '';
   }
 
-  // Generate Inputs untuk Indikator
-  const inds = allConfig.indikatorChecklist || [];
-  const wrapInd = document.getElementById('wrapIndikator');
-  wrapInd.innerHTML = inds.map((ind, i) => `
-    <div style="display:flex;flex-direction:column;gap:4px;">
-      <label style="font-size:12px;font-weight:600;">${ind.label}</label>
-      <input type="number" id="indInput_${i}" min="0" max="100" placeholder="0-100" style="padding:6px 10px;" value="${editData ? (editData[`Ind${i+1}`] || '') : ''}">
-    </div>
-  `).join('');
+  // Tentukan mode berdasarkan data jika edit
+  if (editData) {
+    // Kalau ada nilai <= 20 dan tidak ada yang > 50, mungkin itu mode kesalahan
+    const vals = inds.map((_, i) => Number(editData[`Ind${i+1}`]||0));
+    const isKesalahan = vals.some(v => v > 0 && v <= 20) && !vals.some(v => v > 50);
+    document.getElementById('tModePenilaian').value = isKesalahan ? 'kesalahan' : 'nilai';
+  } else {
+    document.getElementById('tModePenilaian').value = 'nilai';
+  }
 
-  // Attach event listener
-  inds.forEach((ind, i) => {
-    const el = document.getElementById(`indInput_${i}`);
-    if(el) el.addEventListener('input', calculateNilaiAkhir);
-  });
+  renderIndikatorInputs(editData);
   calculateNilaiAkhir(); // reset / recalc
 
   document.getElementById('modalTes').classList.add('show');
@@ -519,7 +592,7 @@ async function saveTes() {
   });
 
   if (!peserta || !penguji || hasMissingNilai) {
-    document.getElementById('tesAlert').innerHTML = '<div class="alert alert-error">Peserta, Penguji, dan Semua Nilai Indikator wajib diisi.</div>';
+    document.getElementById('tesAlert').innerHTML = '<div class="alert alert-error">Peserta, Penguji, dan Semua Indikator wajib diisi (isi 0 jika tidak ada kesalahan).</div>';
     return;
   }
 
