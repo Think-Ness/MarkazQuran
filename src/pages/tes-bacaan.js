@@ -35,9 +35,20 @@ export async function renderTesBacaan(container) {
         <div class="card-header"><h3>Riwayat Tes Evaluasi</h3><span class="text-muted" id="countTes">-</span></div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th style="text-align:center;">#</th><th>Peserta & Penguji</th><th style="text-align:center;">Materi Ujian</th><th style="text-align:center;">Tgl & Jenis</th><th style="text-align:center;">Nilai Akhir</th><th>Detail Indikator</th><th style="text-align:center;">Aksi</th></tr></thead>
+            <thead><tr><th style="text-align:center;">#</th><th>Peserta &amp; Penguji Terakhir</th><th style="text-align:center;">Materi Terakhir</th><th style="text-align:center;">Tgl &amp; Jenis Terakhir</th><th style="text-align:center;">Nilai Terakhir</th><th>Detail Indikator Terakhir</th><th style="text-align:center;">Aksi</th></tr></thead>
             <tbody id="tesBody"><tr><td colspan="7" class="no-data">Memuat...</td></tr></tbody>
           </table>
+        </div>
+      </div>
+
+      <!-- Section Progress detail per peserta -->
+      <div class="card mt-16" id="progressSection" style="display:none;margin-top:16px;">
+        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+          <h3 id="progressTitle">Progress Evaluasi Bacaan</h3>
+          <button class="btn btn-outline btn-sm" onclick="document.getElementById('progressSection').style.display='none'">&#10005; Tutup</button>
+        </div>
+        <div class="card-body" id="progressBody">
+          <!-- Content progress di-generate via JS -->
         </div>
       </div>
     </div>
@@ -283,18 +294,35 @@ function filterTes() {
 }
 
 function renderTes(data) {
-  document.getElementById('countTes').textContent = data.length + ' data';
-  if (!data.length) {
-    document.getElementById('tesBody').innerHTML = '<tr><td colspan="12" class="no-data">Belum ada data</td></tr>';
+  // Group by participant
+  const grouped = {};
+  data.forEach(t => {
+    const key = `${t.TipePeserta}_${t.PesertaID}`;
+    if (!grouped[key]) grouped[key] = [];
+    grouped[key].push(t);
+  });
+  
+  const entries = Object.entries(grouped);
+  document.getElementById('countTes').textContent = entries.length + ' peserta (' + data.length + ' data tes)';
+  
+  if (!entries.length) {
+    document.getElementById('tesBody').innerHTML = '<tr><td colspan="7" class="no-data">Belum ada data</td></tr>';
     return;
   }
+  
   const inds = allConfig.indikatorChecklist || [];
   
-  document.getElementById('tesBody').innerHTML = [...data].reverse().map((t, i) => {
+  document.getElementById('tesBody').innerHTML = entries.map(([key, items], i) => {
+    // Sort items of this participant descending to get the latest
+    const sorted = [...items].sort((a,b) => new Date(b.Tanggal) - new Date(a.Tanggal));
+    const t = sorted[0]; // Latest test
+    const tipe = t.TipePeserta;
+    const id = t.PesertaID;
+    
     const k = getNilaiKategori(t.NilaiAkhir, allConfig.rentangNilai);
     const ayat = t.Halaman && t.Halaman !== 'Semua' ? `Ayat ${t.Halaman}` : 'Semua Ayat';
     
-    // Build detail tooltip or list
+    // Build detail list for the latest test
     const detailList = inds.map((ind, idx) => {
       const val = t[`Ind${idx+1}`] || 0;
       return `<div style="font-size:11px;display:flex;justify-content:space-between;border-bottom:1px solid var(--border);padding:2px 0;">
@@ -302,14 +330,24 @@ function renderTes(data) {
               </div>`;
     }).join('');
 
+    // Check if showing "Lihat Rapot" button
+    // "kalo sudah lulus pre dan post testhnya baru nambah di samping lihat progres itu lihat rapot gitu"
+    const participantTests = allTes.filter(x => String(x.PesertaID) === String(id) && x.TipePeserta === tipe);
+    const hasPre = participantTests.some(x => x.JenisTes === 'Pre Test');
+    const hasPost = participantTests.some(x => x.JenisTes === 'Post Test');
+    const latestTestOverall = [...participantTests].sort((a,b) => new Date(b.Tanggal) - new Date(a.Tanggal))[0];
+    const isLulus = latestTestOverall && Number(latestTestOverall.NilaiAkhir) >= (allConfig.nilaiMinLulus || 71);
+    
+    const showRapot = tipe === 'Santri' && hasPre && hasPost && isLulus;
+
     return `<tr>
       <td style="color:var(--text-muted);font-size:12px;vertical-align:middle;text-align:center;padding:12px;">${i+1}</td>
       <td style="vertical-align:middle;padding:12px;">
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
-          <span class="badge badge-${t.TipePeserta==='Santri'?'aktif':'blue'}" style="font-size:9px;padding:2px 4px;">${t.TipePeserta}</span>
-          <strong style="font-size:13px;color:var(--text);">${getPesertaNama(t.TipePeserta, t.PesertaID)}</strong>
+          <span class="badge badge-${tipe==='Santri'?'aktif':'blue'}" style="font-size:9px;padding:2px 4px;">${tipe}</span>
+          <strong style="font-size:13px;color:var(--text);">${getPesertaNama(tipe, id)}</strong>
         </div>
-        <div style="font-size:11px;color:var(--text-muted);"><span style="font-weight:600;">Penguji:</span> ${getGuruNama(t.IDPenguji)}</div>
+        <div style="font-size:11px;color:var(--text-muted);"><span style="font-weight:600;">Penguji Terakhir:</span> ${getGuruNama(t.IDPenguji)}</div>
       </td>
       <td style="vertical-align:middle;text-align:center;padding:12px;">
         <div style="font-weight:600;font-size:13px;color:var(--text);">${t.NamaSurah||'-'}</div>
@@ -327,23 +365,116 @@ function renderTes(data) {
       </td>
       <td style="vertical-align:middle;min-width:160px;padding:12px;">${detailList}</td>
       <td style="vertical-align:middle;text-align:center;padding:12px;">
-        <div style="display:flex;flex-wrap:wrap;gap:4px;justify-content:center;max-width:140px;">
-          ${t.JenisTes === 'Pre Test' ? `<button class="btn btn-outline btn-sm" data-lanjut="${t.ID}" title="Lanjut Post Test">&#10140; Post Test</button>` : (t.TipePeserta === 'Santri' ? `<button class="btn btn-primary btn-sm" data-rapot="${t.PesertaID}" title="Lihat Rapot">&#128065; Rapot</button>` : '')}
-          <button class="btn btn-outline btn-sm" data-edit="${t.ID}" title="Edit">&#9998;</button>
-          <button class="btn btn-danger btn-sm" data-del="${t.ID}" title="Hapus">&#128465;</button>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center;max-width:160px;">
+          <button class="btn btn-outline btn-sm" data-progress-id="${id}" data-progress-tipe="${tipe}" title="Lihat Progres">&#128200; Lihat Progres</button>
+          ${showRapot ? `<button class="btn btn-primary btn-sm" data-rapot="${id}" title="Lihat Rapot">&#128065; Lihat Rapot</button>` : ''}
         </div>
       </td>
     </tr>`;
   }).join('');
   
-  document.querySelectorAll('[data-lanjut]').forEach(b => b.onclick = () => lanjutPostTest(b.dataset.lanjut));
-  document.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => openAddTes(allTes.find(x => x.ID === b.dataset.edit)));
-  document.querySelectorAll('[data-rapot]').forEach(b => b.onclick = () => openRapot(b.dataset.rapot));
-  document.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => {
-    if (!confirm('Hapus data tes ini?')) return;
-    const r = await deleteTesBacaan(b.dataset.del);
-    if (r.ok) { showToast('Dihapus'); loadAll(); }
+  document.querySelectorAll('[data-progress-id]').forEach(b => {
+    b.onclick = () => showProgress(b.dataset.progressId, b.dataset.progressTipe);
   });
+  document.querySelectorAll('[data-rapot]').forEach(b => b.onclick = () => openRapot(b.dataset.rapot));
+}
+
+function showProgress(pesertaId, tipe) {
+  const nama = getPesertaNama(tipe, pesertaId);
+  const data = allTes.filter(t => String(t.PesertaID) === String(pesertaId) && t.TipePeserta === tipe)
+                     .sort((a, b) => new Date(b.Tanggal) - new Date(a.Tanggal)); // Sort latest first
+  
+  document.getElementById('progressTitle').textContent = `Progres Evaluasi — ${nama} (${tipe})`;
+  
+  const hasPostTest = data.some(t => t.JenisTes === 'Post Test');
+  const inds = allConfig.indikatorChecklist || [];
+  
+  let html = '';
+  if (!data.length) {
+    html = '<p class="no-data">Belum ada riwayat tes evaluasi.</p>';
+  } else {
+    html = `
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Tanggal</th>
+            <th>Jenis Tes</th>
+            <th>Materi</th>
+            <th>Nilai Akhir</th>
+            <th>Detail Indikator</th>
+            <th>Penguji</th>
+            <th>Catatan</th>
+            <th>Aksi</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${data.map(t => {
+            const k = getNilaiKategori(t.NilaiAkhir, allConfig.rentangNilai);
+            const ayat = t.Halaman && t.Halaman !== 'Semua' ? `Ayat ${t.Halaman}` : 'Semua Ayat';
+            const detailList = inds.map((ind, idx) => {
+              const val = t[`Ind${idx+1}`] || 0;
+              return `<div style="font-size:11px;display:flex;justify-content:space-between;border-bottom:1px solid var(--border);padding:2px 0;">
+                        <span style="color:var(--text-muted);">${ind.label}</span> <strong style="color:var(--text);">${val}</strong>
+                      </div>`;
+            }).join('');
+            
+            // Tampilkan tombol "Lanjut Post Test" hanya jika tipe pre-test DAN belum ada post-test sama sekali
+            const showLanjutBtn = t.JenisTes === 'Pre Test' && !hasPostTest;
+            
+            return `<tr>
+              <td>${fmtDate(t.Tanggal)}</td>
+              <td><span class="badge badge-${t.JenisTes==='Pre Test'?'pretest':'posttest'}">${t.JenisTes}</span></td>
+              <td><strong>${t.NamaSurah||'-'}</strong><div style="font-size:11px;color:var(--text-muted);">${ayat}</div></td>
+              <td><strong style="font-size:16px;color:var(--primary);">${t.NilaiAkhir}</strong> <span class="badge ${k.cls}" style="font-size:9px;margin-left:4px;">${k.label}</span></td>
+              <td style="min-width:150px;">${detailList}</td>
+              <td>${getGuruNama(t.IDPenguji)}</td>
+              <td style="font-size:11px;max-width:150px;white-space:normal;word-break:break-word;">${t.Catatan||'-'}</td>
+              <td>
+                <div style="display:flex;gap:4px;">
+                  ${showLanjutBtn ? `<button class="btn btn-outline btn-sm" data-lanjut="${t.ID}">➜ Post Test</button>` : ''}
+                  <button class="btn btn-outline btn-sm" data-edit="${t.ID}">&#9998;</button>
+                  <button class="btn btn-danger btn-sm" data-del="${t.ID}">&#128465;</button>
+                </div>
+              </td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>`;
+  }
+  
+  document.getElementById('progressBody').innerHTML = html;
+  
+  // Bind actions inside progress section
+  document.getElementById('progressBody').querySelectorAll('[data-lanjut]').forEach(b => {
+    b.onclick = () => {
+      lanjutPostTest(b.dataset.lanjut);
+    };
+  });
+  document.getElementById('progressBody').querySelectorAll('[data-edit]').forEach(b => {
+    b.onclick = () => openAddTes(allTes.find(x => x.ID === b.dataset.edit));
+  });
+  document.getElementById('progressBody').querySelectorAll('[data-del]').forEach(b => {
+    b.onclick = async () => {
+      if (!confirm('Hapus data tes ini?')) return;
+      const r = await deleteTesBacaan(b.dataset.del);
+      if (r.ok) {
+        showToast('Dihapus');
+        await loadAll();
+        const remaining = allTes.filter(t => String(t.PesertaID) === String(pesertaId) && t.TipePeserta === tipe);
+        if (remaining.length) {
+          showProgress(pesertaId, tipe);
+        } else {
+          document.getElementById('progressSection').style.display = 'none';
+        }
+      }
+    };
+  });
+  
+  document.getElementById('progressSection').style.display = 'block';
+  document.getElementById('progressSection').scrollIntoView({ behavior: 'smooth' });
+}
 }
 
 function lanjutPostTest(id) {
