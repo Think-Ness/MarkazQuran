@@ -9,7 +9,7 @@ export async function renderTesBacaan(container) {
   container.innerHTML = `
     <div class="page-header">
       <div><h2>Monitoring Tes Bacaan & Evaluasi</h2><p>Pre Test, Post Test & Rekap Remedial Terintegrasi</p></div>
-      <button class="btn btn-primary" id="btnAddTes">+ Input Tes Evaluasi</button>
+      <button class="btn btn-primary" id="btnAddTes" style="display:flex;align-items:center;gap:6px;"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Input Tes Evaluasi</button>
     </div>
 
     <div class="tab-bar">
@@ -27,7 +27,7 @@ export async function renderTesBacaan(container) {
             </div>
             <select id="flJenis" style="width:140px;"><option value="">Semua Jenis</option><option value="Pre Test">Pre Test</option><option value="Post Test">Post Test</option></select>
             <select id="flTipe" style="width:130px;"><option value="">Santri & Guru</option><option value="Santri">Santri</option><option value="Guru">Guru</option></select>
-            <button class="btn btn-outline btn-sm" id="btnRefreshTes">&#8635;</button>
+            <button class="btn btn-outline btn-sm" id="btnRefreshTes" style="display:flex;align-items:center;justify-content:center;height:38px;width:38px;"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg></button>
           </div>
         </div>
       </div>
@@ -68,7 +68,7 @@ export async function renderTesBacaan(container) {
               <option value="Remedial">Perlu Pembinaan (Remedial)</option>
               <option value="Lulus">Tuntas (Lulus)</option>
             </select>
-            <button class="btn btn-outline" id="btnPrintRekap" style="display:flex;align-items:center;gap:6px;height:38px;">🖨️ Cetak Rekap</button>
+            <button class="btn btn-outline" id="btnPrintRekap" style="display:flex;align-items:center;gap:6px;height:38px;"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Cetak Rekap</button>
           </div>
         </div>
       </div>
@@ -378,12 +378,12 @@ function renderTes(data) {
     })[0];
     const isLulus = latestTestOverall && Number(latestTestOverall.NilaiAkhir) >= (allConfig.nilaiMinLulus || 71);
     
-    let actionBtnHtml = `<button class="btn btn-outline btn-sm" data-progress-id="${id}" data-progress-tipe="${tipe}" title="Lihat Progres">&#128200; Lihat Progres</button>`;
+    let actionBtnHtml = `<button class="btn btn-outline btn-sm" style="display:inline-flex;align-items:center;gap:4px;" data-progress-id="${id}" data-progress-tipe="${tipe}" title="Lihat Progres"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg> Lihat Progres</button>`;
     if (tipe === 'Santri' && hasPostOrRemedial) {
       if (isLulus) {
-        actionBtnHtml += ` <button class="btn btn-primary btn-sm" data-rapot="${id}" title="Lihat Rapot">&#128065; Lihat Rapot</button>`;
+        actionBtnHtml += ` <button class="btn btn-primary btn-sm" style="display:inline-flex;align-items:center;gap:4px;" data-rapot="${id}" title="Lihat Rapot"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg> Lihat Rapot</button>`;
       } else {
-        actionBtnHtml += ` <button class="btn btn-warning btn-sm" data-input-remedial-id="${id}" data-input-remedial-tipe="${tipe}" title="Input Remedial">🔁 Remedial</button>`;
+        actionBtnHtml += ` <button class="btn btn-sm" style="background-color: #ef4444 !important; border-color: #ef4444 !important; color: white !important; display:inline-flex; align-items:center; gap:4px; font-weight:600;" data-input-remedial-id="${id}" data-input-remedial-tipe="${tipe}" title="Input Remedial"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg> Remedial</button>`;
       }
     }
 
@@ -830,9 +830,9 @@ function filterRekap() {
   });
 
   document.getElementById('rekapStats').innerHTML = `
-    <div class="stat-card"><div class="stat-icon green">&#10003;</div><div><div class="stat-label">Tuntas (Lulus)</div><div class="stat-value">${countLulus}</div></div></div>
-    <div class="stat-card"><div class="stat-icon red">&#9888;</div><div><div class="stat-label">Remedial</div><div class="stat-value">${countRemedial}</div></div></div>
-    <div class="stat-card"><div class="stat-icon gold">&#9711;</div><div><div class="stat-label">Belum Ujian</div><div class="stat-value">${countBelum}</div></div></div>
+    <div class="stat-card"><div class="stat-icon green" style="display:flex;align-items:center;justify-content:center;"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div><div><div class="stat-label">Tuntas (Lulus)</div><div class="stat-value">${countLulus}</div></div></div>
+    <div class="stat-card"><div class="stat-icon red" style="display:flex;align-items:center;justify-content:center;"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div><div><div class="stat-label">Remedial</div><div class="stat-value">${countRemedial}</div></div></div>
+    <div class="stat-card"><div class="stat-icon gold" style="display:flex;align-items:center;justify-content:center;"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><div><div class="stat-label">Belum Ujian</div><div class="stat-value">${countBelum}</div></div></div>
   `;
 
   activeRekapData = rekap;
@@ -852,7 +852,7 @@ function filterRekap() {
   document.getElementById('rekapBody').innerHTML = rekap.map((r, i) => {
     let actionBtn = '-';
     if (r.statusRekap === 'Remedial') {
-      actionBtn = `<button class="btn btn-warning btn-sm" data-input-remedial-id="${r.id}" data-input-remedial-tipe="${tipe}" title="Input Remedial">🔁 Remedial</button>`;
+      actionBtn = `<button class="btn btn-sm" style="background-color: #ef4444 !important; border-color: #ef4444 !important; color: white !important; display:inline-flex; align-items:center; gap:4px; font-weight:600;" data-input-remedial-id="${r.id}" data-input-remedial-tipe="${tipe}" title="Input Remedial"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg> Remedial</button>`;
     }
     
     let jenisBadge = '-';
