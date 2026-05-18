@@ -306,11 +306,9 @@ function renderTes(data) {
   document.getElementById('countTes').textContent = entries.length + ' peserta (' + data.length + ' data tes)';
   
   if (!entries.length) {
-    document.getElementById('tesBody').innerHTML = '<tr><td colspan="7" class="no-data">Belum ada data</td></tr>';
+    document.getElementById('tesBody').innerHTML = '<tr><td colspan="6" class="no-data">Belum ada data</td></tr>';
     return;
   }
-  
-  const inds = allConfig.indikatorChecklist || [];
   
   document.getElementById('tesBody').innerHTML = entries.map(([key, items], i) => {
     // Sort items of this participant descending to get the latest
@@ -320,18 +318,19 @@ function renderTes(data) {
     const id = t.PesertaID;
     
     const k = getNilaiKategori(t.NilaiAkhir, allConfig.rentangNilai);
-    const ayat = t.Halaman && t.Halaman !== 'Semua' ? `Ayat ${t.Halaman}` : 'Semua Ayat';
     
-    // Build detail list for the latest test
-    const detailList = inds.map((ind, idx) => {
-      const val = t[`Ind${idx+1}`] || 0;
-      return `<div style="font-size:11px;display:flex;justify-content:space-between;border-bottom:1px solid var(--border);padding:2px 0;">
-                <span style="color:var(--text-muted);">${ind.label}</span> <strong style="color:var(--text);">${val}</strong>
-              </div>`;
-    }).join('');
+    // Get all unique surahs tested in history
+    const surahs = [...new Set(items.map(x => x.NamaSurah).filter(Boolean))];
+    let surahLabels = surahs.slice(0, 3).map(s => `<span class="badge" style="background:var(--surface2);border:1px solid var(--border);">${s}</span>`).join(' ');
+    if (surahs.length > 3) surahLabels += ` <span style="font-size:10px;color:var(--text-muted);">+${surahs.length - 3} lainnya</span>`;
+    if (!surahs.length) surahLabels = '-';
+    
+    // Get all completed test types
+    const completedTypes = [...new Set(items.map(x => x.JenisTes))];
+    const badgesHtml = completedTypes.map(type => `<span class="badge badge-${type==='Pre Test'?'pretest':'posttest'}" style="font-size:10px;margin:2px;">${type}</span>`).join(' ');
+    const lastDateLabel = `<div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Terakhir: ${fmtDate(t.Tanggal)}</div>`;
 
     // Check if showing "Lihat Rapot" button
-    // "kalo sudah lulus pre dan post testhnya baru nambah di samping lihat progres itu lihat rapot gitu"
     const participantTests = allTes.filter(x => String(x.PesertaID) === String(id) && x.TipePeserta === tipe);
     const hasPre = participantTests.some(x => x.JenisTes === 'Pre Test');
     const hasPost = participantTests.some(x => x.JenisTes === 'Post Test');
@@ -350,12 +349,13 @@ function renderTes(data) {
         <div style="font-size:11px;color:var(--text-muted);"><span style="font-weight:600;">Penguji Terakhir:</span> ${getGuruNama(t.IDPenguji)}</div>
       </td>
       <td style="vertical-align:middle;text-align:center;padding:12px;">
-        <div style="font-weight:600;font-size:13px;color:var(--text);">${t.NamaSurah||'-'}</div>
-        <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">${ayat}</div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px;justify-content:center;">${surahLabels}</div>
       </td>
       <td style="vertical-align:middle;text-align:center;padding:12px;">
-        <div style="font-size:12px;font-weight:600;margin-bottom:6px;">${fmtDate(t.Tanggal)}</div>
-        <span class="badge badge-${t.JenisTes==='Pre Test'?'pretest':'posttest'}" style="font-size:10px;">${t.JenisTes}</span>
+        <div style="display:flex;flex-direction:column;align-items:center;">
+          <div>${badgesHtml}</div>
+          ${lastDateLabel}
+        </div>
       </td>
       <td style="vertical-align:middle;text-align:center;padding:12px;">
         <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;">
@@ -363,7 +363,6 @@ function renderTes(data) {
           <div style="margin-top:8px;"><span class="badge ${k.cls}" style="font-size:10px;">${k.label}</span></div>
         </div>
       </td>
-      <td style="vertical-align:middle;min-width:160px;padding:12px;">${detailList}</td>
       <td style="vertical-align:middle;text-align:center;padding:12px;">
         <div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center;max-width:160px;">
           <button class="btn btn-outline btn-sm" data-progress-id="${id}" data-progress-tipe="${tipe}" title="Lihat Progres">&#128200; Lihat Progres</button>
@@ -412,10 +411,16 @@ function showProgress(pesertaId, tipe) {
           ${data.map(t => {
             const k = getNilaiKategori(t.NilaiAkhir, allConfig.rentangNilai);
             const ayat = t.Halaman && t.Halaman !== 'Semua' ? `Ayat ${t.Halaman}` : 'Semua Ayat';
+            
+            // Check if this test was likely inputted in "kesalahan" mode
+            const vals = inds.map((_, idx) => Number(t[`Ind${idx+1}`] || 0));
+            const isKesalahan = (vals.some(v => v > 0 && v <= 20) && !vals.some(v => v > 50)) || (vals.every(v => v === 0) && Number(t.NilaiAkhir) === 100);
+            
             const detailList = inds.map((ind, idx) => {
               const val = t[`Ind${idx+1}`] || 0;
+              const labelSalah = isKesalahan ? ' salah' : '';
               return `<div style="font-size:11px;display:flex;justify-content:space-between;border-bottom:1px solid var(--border);padding:2px 0;">
-                        <span style="color:var(--text-muted);">${ind.label}</span> <strong style="color:var(--text);">${val}</strong>
+                        <span style="color:var(--text-muted);">${ind.label}</span> <strong style="color:var(--text);">${val}${labelSalah}</strong>
                       </div>`;
             }).join('');
             
