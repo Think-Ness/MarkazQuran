@@ -200,6 +200,25 @@ export async function renderTesBacaan(container) {
   document.getElementById('tesSaveBtn').onclick = saveTes;
 }
 
+function formatHalaman(h) {
+  if (!h) return '';
+  h = String(h).trim();
+  
+  // Case 1: ISO Date String like "2026-01-06T17:00:00.000Z"
+  if (h.includes('T') && !isNaN(Date.parse(h))) {
+    const d = new Date(h);
+    return `${d.getMonth() + 1}-${d.getDate()}`;
+  }
+  
+  // Case 2: Slash date format like "1/7/2026" or "01/07/2026"
+  if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(h)) {
+    const parts = h.split('/');
+    return `${parseInt(parts[0])}-${parseInt(parts[1])}`;
+  }
+  
+  return h;
+}
+
 async function loadAll() {
   const safeParseArr = r => Array.isArray(r) ? r : (typeof r === 'string' ? JSON.parse(r) : []);
   const safeParseObj = r => typeof r === 'string' ? JSON.parse(r) : (r || {});
@@ -211,6 +230,13 @@ async function loadAll() {
     getTesBacaan().then(safeParseArr),
     getConfig().then(safeParseObj)
   ]);
+
+  // Centralized cleanup to prevent Google Sheets auto-date conversion bugs
+  allTes = allTes.map(t => ({
+    ...t,
+    Halaman: formatHalaman(t.Halaman)
+  }));
+
   filterTes();
   if (activeTab === 'rekap') filterRekap();
 }
@@ -311,8 +337,14 @@ function renderTes(data) {
   }
   
   document.getElementById('tesBody').innerHTML = entries.map(([key, items], i) => {
-    // Sort items of this participant descending to get the latest
-    const sorted = [...items].sort((a,b) => new Date(b.Tanggal) - new Date(a.Tanggal));
+    // Sort items of this participant descending to get the latest (prioritize Post Test on identical dates)
+    const sorted = [...items].sort((a,b) => {
+      const dateDiff = new Date(b.Tanggal) - new Date(a.Tanggal);
+      if (dateDiff !== 0) return dateDiff;
+      if (a.JenisTes === 'Pre Test' && b.JenisTes === 'Post Test') return 1;
+      if (a.JenisTes === 'Post Test' && b.JenisTes === 'Pre Test') return -1;
+      return 0;
+    });
     const t = sorted[0]; // Latest test
     const tipe = t.TipePeserta;
     const id = t.PesertaID;
