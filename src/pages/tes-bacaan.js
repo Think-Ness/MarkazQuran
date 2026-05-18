@@ -186,12 +186,15 @@ export async function renderTesBacaan(container) {
 }
 
 async function loadAll() {
+  const safeParseArr = r => Array.isArray(r) ? r : (typeof r === 'string' ? JSON.parse(r) : []);
+  const safeParseObj = r => typeof r === 'string' ? JSON.parse(r) : (r || {});
+  
   [allSantri, allGuru, allSurah, allTes, allConfig] = await Promise.all([
-    getSantri().then(r => Array.isArray(r) ? r : JSON.parse(r)),
-    getGuru().then(r => Array.isArray(r) ? r : JSON.parse(r)),
-    getSurahList().then(r => Array.isArray(r) ? r : JSON.parse(r)),
-    getTesBacaan().then(r => Array.isArray(r) ? r : JSON.parse(r)),
-    getConfig().then(r => typeof r === 'string' ? JSON.parse(r) : r)
+    getSantri().then(safeParseArr),
+    getGuru().then(safeParseArr),
+    getSurahList().then(safeParseArr),
+    getTesBacaan().then(safeParseArr),
+    getConfig().then(safeParseObj)
   ]);
   filterTes();
   if (activeTab === 'rekap') filterRekap();

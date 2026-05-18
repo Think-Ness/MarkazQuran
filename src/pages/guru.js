@@ -67,8 +67,8 @@ export async function renderGuru(container) {
 
 async function loadGuru() {
   document.getElementById('guruBody').innerHTML='<tr><td colspan="7" class="no-data">Memuat...</td></tr>';
-  const raw=await getGuru();
-  allGuru=Array.isArray(raw)?raw:JSON.parse(raw);
+  const safeParseArr = r => Array.isArray(r) ? r : (typeof r === 'string' ? JSON.parse(r) : []);
+  allGuru = await getGuru().then(safeParseArr);
   renderTable(allGuru);
 }
 

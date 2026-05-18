@@ -80,8 +80,8 @@ export async function renderSantri(container) {
 
 async function loadSantri() {
   document.getElementById('santriBody').innerHTML='<tr><td colspan="9" class="no-data">Memuat...</td></tr>';
-  const raw = await getSantri();
-  allSantri = Array.isArray(raw) ? raw : JSON.parse(raw);
+  const safeParseArr = r => Array.isArray(r) ? r : (typeof r === 'string' ? JSON.parse(r) : []);
+  allSantri = await getSantri().then(safeParseArr);
   populateKelasFilter();
   renderTable(allSantri);
 }

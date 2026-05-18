@@ -98,11 +98,15 @@ export async function renderRapot(container) {
 }
 
 async function loadAll() {
-  [allSantri,allTes,allHafalan,allRapot]=await Promise.all([
-    getSantri().then(r=>Array.isArray(r)?r:JSON.parse(r)),
-    getTesBacaan().then(r=>Array.isArray(r)?r:JSON.parse(r)),
-    getHafalan().then(r=>Array.isArray(r)?r:JSON.parse(r)),
-    getRapot().then(r=>Array.isArray(r)?r:JSON.parse(r))
+  const safeParseArr = r => Array.isArray(r) ? r : (typeof r === 'string' ? JSON.parse(r) : []);
+  const safeParseObj = r => typeof r === 'string' ? JSON.parse(r) : (r || {});
+
+  [allSantri, allRapot, allConfig, allTes, allHafalan] = await Promise.all([
+    getSantri().then(safeParseArr),
+    getRapot().then(safeParseArr),
+    getConfig().then(safeParseObj),
+    getTesBacaan().then(safeParseArr),
+    getHafalan().then(safeParseArr)
   ]);
   populateSantriOpts();
   renderRapotTable(allRapot);

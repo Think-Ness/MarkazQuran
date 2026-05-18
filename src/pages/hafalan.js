@@ -143,11 +143,12 @@ export async function renderHafalan(container) {
 }
 
 async function loadAll() {
+  const safeParseArr = r => Array.isArray(r) ? r : (typeof r === 'string' ? JSON.parse(r) : []);
   [allSantri, allGuru, allSurah, allHafalan] = await Promise.all([
-    getSantri().then(r  => Array.isArray(r) ? r : JSON.parse(r)),
-    getGuru().then(r    => Array.isArray(r) ? r : JSON.parse(r)),
-    getSurahList().then(r => Array.isArray(r) ? r : JSON.parse(r)),
-    getHafalan().then(r => Array.isArray(r) ? r : JSON.parse(r))
+    getSantri().then(safeParseArr),
+    getGuru().then(safeParseArr),
+    getSurahList().then(safeParseArr),
+    getHafalan().then(safeParseArr)
   ]);
   populateFilters();
   renderSummary();

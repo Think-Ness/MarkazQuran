@@ -4,8 +4,8 @@ import { getNilaiKategori, fmtDate } from '../utils.js';
 export async function renderDashboard(container) {
   container.innerHTML = `<div class="loading-state"><div class="spinner"></div><p>Memuat dashboard...</p></div>`;
   try {
-    const raw  = await getDashboardStats();
-    const d    = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    const raw = await getDashboardStats();
+    const d = typeof raw === 'string' ? JSON.parse(raw) : (raw || {});
     if (d.error) throw new Error(d.error);
 
     const stats = [
