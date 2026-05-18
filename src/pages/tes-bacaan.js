@@ -2,7 +2,7 @@ import { getTesBacaan, addTesBacaan, updateTesBacaan, deleteTesBacaan, getSantri
 import { getNilaiKategori, fmtDate, showToast } from '../utils.js';
 import { SearchableSelect } from '../components/searchable-select.js';
 
-let allTes=[], allSantri=[], allGuru=[], allSurah=[], allConfig={}, activeTab='tes';
+let allTes=[], allSantri=[], allGuru=[], allSurah=[], allConfig={}, activeTab='tes', activeRekapData=[];
 let ssPesertaTes, ssPengujiTes, ssSurahTes;
 
 export async function renderTesBacaan(container) {
@@ -57,17 +57,18 @@ export async function renderTesBacaan(container) {
     <div id="panelRekap" style="display:none;">
       <div class="card mb-16" style="margin-bottom:16px;">
         <div class="card-body" style="padding:14px 20px;">
-          <div class="filter-bar">
-             <div class="search-box"><span class="search-icon">&#128269;</span>
+          <div class="filter-bar" style="display:flex;align-items:center;gap:12px;width:100%;">
+             <div class="search-box" style="flex:1;"><span class="search-icon">&#128269;</span>
               <input type="text" id="srchRekap" placeholder="Cari nama peserta...">
             </div>
             <select id="flTipeRekap" style="width:130px;"><option value="Santri">Santri</option><option value="Guru">Guru</option></select>
-            <select id="flStatusRekap" style="width:150px;">
+            <select id="flStatusRekap" style="width:170px;">
               <option value="">Semua Status</option>
               <option value="Belum">Belum Ujian</option>
               <option value="Remedial">Perlu Pembinaan (Remedial)</option>
               <option value="Lulus">Tuntas (Lulus)</option>
             </select>
+            <button class="btn btn-outline" id="btnPrintRekap" style="display:flex;align-items:center;gap:6px;height:38px;">🖨️ Cetak Rekap</button>
           </div>
         </div>
       </div>
@@ -76,8 +77,8 @@ export async function renderTesBacaan(container) {
         <div class="card-header"><h3>Status Tes Terakhir Peserta</h3><span class="text-muted" id="countRekap">-</span></div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>#</th><th>ID Peserta</th><th>Nama</th><th>Status Terakhir</th><th>Jenis Tes Terakhir</th><th>Nilai Tes Terakhir</th><th>Keterangan</th></tr></thead>
-            <tbody id="rekapBody"><tr><td colspan="7" class="no-data">Memuat...</td></tr></tbody>
+            <thead><tr><th>#</th><th>ID Peserta</th><th>Nama</th><th>Status Terakhir</th><th style="text-align:center;">Jenis Ujian</th><th style="text-align:center;">Nilai Terakhir</th><th>Tanggal</th><th style="text-align:center;">Aksi</th></tr></thead>
+            <tbody id="rekapBody"><tr><td colspan="8" class="no-data">Memuat...</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -98,7 +99,7 @@ export async function renderTesBacaan(container) {
             </div>
             <div class="form-group">
               <label>Jenis Tes</label>
-              <select id="tJenis"><option value="Pre Test">Pre Test</option><option value="Post Test">Post Test</option></select>
+              <select id="tJenis"><option value="Pre Test">Pre Test</option><option value="Post Test">Post Test</option><option value="Remedial">Remedial</option></select>
             </div>
             <div class="form-group">
               <label>Tanggal</label>
@@ -189,6 +190,7 @@ export async function renderTesBacaan(container) {
   document.getElementById('srchRekap').oninput     = filterRekap;
   document.getElementById('flTipeRekap').onchange  = filterRekap;
   document.getElementById('flStatusRekap').onchange= filterRekap;
+  document.getElementById('btnPrintRekap').onclick = printRekapRemedial;
 
   document.getElementById('tTipe').onchange     = () => {
     if(ssPesertaTes) ssPesertaTes.setOptions(buildPesertaOpts(document.getElementById('tTipe').value));
@@ -362,14 +364,28 @@ function renderTes(data) {
     const badgesHtml = completedTypes.map(type => `<span class="badge badge-${type==='Pre Test'?'pretest':'posttest'}" style="font-size:10px;margin:2px;">${type}</span>`).join(' ');
     const lastDateLabel = `<div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Terakhir: ${fmtDate(t.Tanggal)}</div>`;
 
-    // Check if showing "Lihat Rapot" button
+    // Check if showing "Lihat Rapot" or "Remedial" button
     const participantTests = allTes.filter(x => String(x.PesertaID) === String(id) && x.TipePeserta === tipe);
-    const hasPre = participantTests.some(x => x.JenisTes === 'Pre Test');
-    const hasPost = participantTests.some(x => x.JenisTes === 'Post Test');
-    const latestTestOverall = [...participantTests].sort((a,b) => new Date(b.Tanggal) - new Date(a.Tanggal))[0];
+    const hasPostOrRemedial = participantTests.some(x => x.JenisTes === 'Post Test' || x.JenisTes === 'Remedial');
+    
+    // Sort overall tests to find the absolute latest test status
+    const latestTestOverall = [...participantTests].sort((a,b) => {
+      const dateDiff = new Date(b.Tanggal) - new Date(a.Tanggal);
+      if (dateDiff !== 0) return dateDiff;
+      if (a.JenisTes === 'Pre Test' && b.JenisTes === 'Post Test') return 1;
+      if (a.JenisTes === 'Post Test' && b.JenisTes === 'Pre Test') return -1;
+      return 0;
+    })[0];
     const isLulus = latestTestOverall && Number(latestTestOverall.NilaiAkhir) >= (allConfig.nilaiMinLulus || 71);
     
-    const showRapot = tipe === 'Santri' && hasPre && hasPost && isLulus;
+    let actionBtnHtml = `<button class="btn btn-outline btn-sm" data-progress-id="${id}" data-progress-tipe="${tipe}" title="Lihat Progres">&#128200; Lihat Progres</button>`;
+    if (tipe === 'Santri' && hasPostOrRemedial) {
+      if (isLulus) {
+        actionBtnHtml += ` <button class="btn btn-primary btn-sm" data-rapot="${id}" title="Lihat Rapot">&#128065; Lihat Rapot</button>`;
+      } else {
+        actionBtnHtml += ` <button class="btn btn-warning btn-sm" data-input-remedial-id="${id}" data-input-remedial-tipe="${tipe}" title="Input Remedial">🔁 Remedial</button>`;
+      }
+    }
 
     return `<tr>
       <td style="color:var(--text-muted);font-size:12px;vertical-align:middle;text-align:center;padding:12px;">${i+1}</td>
@@ -397,8 +413,7 @@ function renderTes(data) {
       </td>
       <td style="vertical-align:middle;text-align:center;padding:12px;">
         <div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center;max-width:160px;">
-          <button class="btn btn-outline btn-sm" data-progress-id="${id}" data-progress-tipe="${tipe}" title="Lihat Progres">&#128200; Lihat Progres</button>
-          ${showRapot ? `<button class="btn btn-primary btn-sm" data-rapot="${id}" title="Lihat Rapot">&#128065; Lihat Rapot</button>` : ''}
+          ${actionBtnHtml}
         </div>
       </td>
     </tr>`;
@@ -408,6 +423,9 @@ function renderTes(data) {
     b.onclick = () => showProgress(b.dataset.progressId, b.dataset.progressTipe);
   });
   document.querySelectorAll('[data-rapot]').forEach(b => b.onclick = () => openRapot(b.dataset.rapot));
+  document.querySelectorAll('[data-input-remedial-id]').forEach(b => {
+    b.onclick = () => openInputRemedial(b.dataset.inputRemedialId, b.dataset.inputRemedialTipe);
+  });
 }
 
 function showProgress(pesertaId, tipe) {
@@ -536,9 +554,238 @@ function lanjutPostTest(id) {
   }
 }
 
+function openInputRemedial(pesertaId, tipe) {
+  const tests = allTes.filter(t => String(t.PesertaID) === String(pesertaId) && t.TipePeserta === tipe)
+                      .sort((a,b) => new Date(b.Tanggal) - new Date(a.Tanggal));
+  const lastT = tests[0];
+  
+  openAddTes(); // Buka mode tambah baru
+  document.querySelector('#modalTes h3').textContent = 'Input Remedial';
+  
+  document.getElementById('tTipe').value = tipe;
+  ssPesertaTes.setOptions(buildPesertaOpts(tipe));
+  ssPesertaTes.setValue(pesertaId);
+  if (lastT) {
+    ssPengujiTes.setValue(lastT.IDPenguji);
+  }
+  document.getElementById('tJenis').value = 'Remedial'; // Force "Remedial"
+  
+  if (lastT && lastT.NoSurah) {
+    ssSurahTes.setValue(lastT.NoSurah);
+    onSurahSelect(lastT.NoSurah);
+    if (lastT.Halaman && lastT.Halaman !== 'Semua') {
+      const [d, s] = lastT.Halaman.split('-');
+      document.getElementById('tAyatDari').value = d || '';
+      document.getElementById('tAyatSampai').value = s || '';
+    }
+  }
+}
+
 function openRapot(stambuk) {
   sessionStorage.setItem('autoRapotSantri', stambuk);
   window.location.hash = '#rapot';
+}
+
+function printRekapRemedial() {
+  const tipe = document.getElementById('flTipeRekap').value;
+  const statusFilter = document.getElementById('flStatusRekap').value;
+  
+  if (!activeRekapData || !activeRekapData.length) {
+    alert('Tidak ada data rekap remedial yang dapat dicetak.');
+    return;
+  }
+  
+  const printWindow = window.open('', '_blank');
+  
+  const rowsHtml = activeRekapData.map((r, idx) => {
+    let details = '-';
+    if (r.lastTest) {
+      const ayatStr = r.lastTest.Halaman && r.lastTest.Halaman !== 'Semua' ? ` Ayat ${r.lastTest.Halaman}` : ' Semua Ayat';
+      details = `<strong>${r.lastTest.NamaSurah || '-'}</strong> (${r.lastTest.JenisTes}${ayatStr})`;
+    }
+    
+    const statusText = r.statusRekap === 'Lulus' ? 'Tuntas (Lulus)' : (r.statusRekap === 'Remedial' ? 'Perlu Pembinaan (Remedial)' : 'Belum Ujian');
+    const badgeCls = r.statusRekap === 'Lulus' ? 'badge-sb' : (r.statusRekap === 'Remedial' ? 'badge-pb' : 'badge-belum');
+    
+    return `
+      <tr>
+        <td style="text-align:center;">${idx + 1}</td>
+        <td style="font-family:monospace;font-weight:600;">${r.id}</td>
+        <td><strong>${r.nama}</strong></td>
+        <td><span class="badge ${badgeCls}">${statusText}</span></td>
+        <td>${details}</td>
+        <td style="text-align:center;font-weight:bold;font-size:14px;">${r.lastTest ? r.lastTest.NilaiAkhir : '-'}</td>
+        <td>${r.lastTest ? fmtDate(r.lastTest.Tanggal) : '-'}</td>
+      </tr>
+    `;
+  }).join('');
+
+  const countLulus = activeRekapData.filter(x => x.statusRekap === 'Lulus').length;
+  const countRemedial = activeRekapData.filter(x => x.statusRekap === 'Remedial').length;
+  const countBelum = activeRekapData.filter(x => x.statusRekap === 'Belum').length;
+
+  const html = `
+    <html>
+    <head>
+      <title>Cetak Rekap Remedial — Markaz Qur'an</title>
+      <style>
+        body {
+          font-family: 'Inter', system-ui, -apple-system, sans-serif;
+          color: #1e293b;
+          margin: 0;
+          padding: 40px;
+          line-height: 1.5;
+        }
+        .header {
+          text-align: center;
+          border-bottom: 3px double #cbd5e1;
+          padding-bottom: 20px;
+          margin-bottom: 30px;
+        }
+        .logo-text {
+          font-size: 24px;
+          font-weight: 800;
+          color: #0f172a;
+          letter-spacing: -0.5px;
+          margin: 0;
+          text-transform: uppercase;
+        }
+        .sub-text {
+          font-size: 14px;
+          color: #64748b;
+          margin: 5px 0 0 0;
+          font-weight: 500;
+        }
+        .title {
+          font-size: 18px;
+          font-weight: 700;
+          color: #1e293b;
+          text-align: center;
+          margin: 20px 0;
+          text-transform: uppercase;
+        }
+        .meta-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 15px;
+          margin-bottom: 25px;
+          font-size: 13px;
+          background: #f8fafc;
+          padding: 15px;
+          border-radius: 8px;
+          border: 1px solid #e2e8f0;
+        }
+        .meta-item span {
+          font-weight: 700;
+          color: #475569;
+        }
+        table {
+          width: 100%;
+          border-collapse: collapse;
+          margin-top: 10px;
+          font-size: 12px;
+        }
+        th {
+          background-color: #f1f5f9;
+          color: #334155;
+          font-weight: 700;
+          text-transform: uppercase;
+          font-size: 11px;
+          letter-spacing: 0.5px;
+          padding: 12px 10px;
+          border: 1px solid #cbd5e1;
+          text-align: left;
+        }
+        td {
+          padding: 10px;
+          border: 1px solid #cbd5e1;
+          color: #334155;
+        }
+        tr:nth-child(even) td {
+          background-color: #f8fafc;
+        }
+        .badge {
+          display: inline-block;
+          padding: 3px 8px;
+          border-radius: 4px;
+          font-size: 10px;
+          font-weight: 700;
+          text-transform: uppercase;
+        }
+        .badge-belum { background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0; }
+        .badge-pb { background: #fef2f2; color: #ef4444; border: 1px solid #fecaca; }
+        .badge-sb { background: #f0fdf4; color: #22c55e; border: 1px solid #bbf7d0; }
+        .footer-section {
+          margin-top: 60px;
+          display: flex;
+          justify-content: flex-end;
+          font-size: 13px;
+        }
+        .signature-box {
+          text-align: center;
+          width: 250px;
+        }
+        .signature-space {
+          height: 80px;
+        }
+        .signature-name {
+          font-weight: 700;
+          border-bottom: 1px solid #475569;
+          padding-bottom: 3px;
+        }
+        @media print {
+          body { padding: 0; }
+          @page { margin: 1.5cm; }
+        }
+      </style>
+    </head>
+    <body onload="window.print(); window.close();">
+      <div class="header">
+        <h1 class="logo-text">MARKAZ QUR'AN</h1>
+        <p class="sub-text">Sistem Monitoring & Pembinaan Tahsin Terpadu</p>
+      </div>
+      
+      <h2 class="title">REKAPITULASI EVALUASI & REMEDIAL BACAAN (${tipe.toUpperCase()})</h2>
+      
+      <div class="meta-grid">
+        <div class="meta-item"><span>Tanggal Cetak:</span> ${fmtDate(new Date())}</div>
+        <div class="meta-item"><span>Filter Status:</span> ${statusFilter || 'Semua Status'}</div>
+        <div class="meta-item"><span>Statistik Tuntas (Lulus):</span> ${countLulus} Peserta</div>
+        <div class="meta-item"><span>Statistik Remedial:</span> ${countRemedial} Peserta</div>
+      </div>
+      
+      <table>
+        <thead>
+          <tr>
+            <th style="width:30px;text-align:center;">#</th>
+            <th style="width:100px;">Stambuk / ID</th>
+            <th>Nama Lengkap</th>
+            <th style="width:180px;">Status Terakhir</th>
+            <th>Ujian Terakhir</th>
+            <th style="width:70px;text-align:center;">Nilai</th>
+            <th style="width:100px;">Tanggal Ujian</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rowsHtml}
+        </tbody>
+      </table>
+      
+      <div class="footer-section">
+        <div class="signature-box">
+          <p>Kediri, ${fmtDate(new Date())}</p>
+          <p style="margin-top:-10px;">Penanggung Jawab Markaz Qur'an</p>
+          <div class="signature-space"></div>
+          <p class="signature-name">......................................................</p>
+          <p style="font-size:11px;color:#64748b;margin-top:-5px;">Staff Penguji Markaz Qur'an</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+  
+  printWindow.document.write(html);
+  printWindow.document.close();
 }
 
 // ── Rekap Remedial ────────────────────────────────────────────
@@ -588,9 +835,11 @@ function filterRekap() {
     <div class="stat-card"><div class="stat-icon gold">&#9711;</div><div><div class="stat-label">Belum Ujian</div><div class="stat-value">${countBelum}</div></div></div>
   `;
 
+  activeRekapData = rekap;
+
   document.getElementById('countRekap').textContent = rekap.length + ' peserta';
   if (!rekap.length) {
-    document.getElementById('rekapBody').innerHTML = '<tr><td colspan="7" class="no-data">Tidak ada data sesuai filter</td></tr>';
+    document.getElementById('rekapBody').innerHTML = '<tr><td colspan="8" class="no-data">Tidak ada data sesuai filter</td></tr>';
     return;
   }
 
@@ -600,17 +849,36 @@ function filterRekap() {
     'Lulus': '<span class="badge badge-sb">Lulus</span>'
   };
 
-  document.getElementById('rekapBody').innerHTML = rekap.map((r, i) => `
-    <tr>
-      <td style="color:var(--text-muted);font-size:12px;">${i+1}</td>
-      <td style="font-family:monospace;font-size:13px;">${r.id}</td>
-      <td style="font-weight:600;">${r.nama}</td>
-      <td>${ST_BADGE[r.statusRekap]}</td>
-      <td>${r.lastTest ? `<span class="badge badge-${r.lastTest.JenisTes==='Pre Test'?'pretest':'posttest'}">${r.lastTest.JenisTes}</span>` : '-'}</td>
-      <td>${r.lastTest ? `<strong style="font-size:15px;">${r.lastTest.NilaiAkhir}</strong> <span class="badge ${r.kategori.cls}" style="margin-left:6px;font-size:10px;">${r.kategori.label}</span>` : '-'}</td>
-      <td style="font-size:12px;color:var(--text-muted);">${r.lastTest ? `Ujian tgl ${fmtDate(r.lastTest.Tanggal)}` : 'Harus segera dijadwalkan'}</td>
-    </tr>
-  `).join('');
+  document.getElementById('rekapBody').innerHTML = rekap.map((r, i) => {
+    let actionBtn = '-';
+    if (r.statusRekap === 'Remedial') {
+      actionBtn = `<button class="btn btn-warning btn-sm" data-input-remedial-id="${r.id}" data-input-remedial-tipe="${tipe}" title="Input Remedial">🔁 Remedial</button>`;
+    }
+    
+    let jenisBadge = '-';
+    if (r.lastTest) {
+      const jType = r.lastTest.JenisTes;
+      const bCls = jType === 'Pre Test' ? 'pretest' : (jType === 'Post Test' ? 'posttest' : 'warning');
+      jenisBadge = `<span class="badge badge-${bCls}">${jType}</span>`;
+    }
+
+    return `
+      <tr>
+        <td style="color:var(--text-muted);font-size:12px;">${i+1}</td>
+        <td style="font-family:monospace;font-size:13px;font-weight:600;">${r.id}</td>
+        <td style="font-weight:600;">${r.nama}</td>
+        <td>${ST_BADGE[r.statusRekap]}</td>
+        <td style="text-align:center;">${jenisBadge}</td>
+        <td style="text-align:center;">${r.lastTest ? `<strong style="font-size:15px;color:var(--primary);">${r.lastTest.NilaiAkhir}</strong> <span class="badge ${r.kategori.cls}" style="margin-left:6px;font-size:10px;">${r.kategori.label}</span>` : '-'}</td>
+        <td>${r.lastTest ? fmtDate(r.lastTest.Tanggal) : '-'}</td>
+        <td style="text-align:center;">${actionBtn}</td>
+      </tr>
+    `;
+  }).join('');
+
+  document.getElementById('rekapBody').querySelectorAll('[data-input-remedial-id]').forEach(b => {
+    b.onclick = () => openInputRemedial(b.dataset.inputRemedialId, b.dataset.inputRemedialTipe);
+  });
 }
 
 
