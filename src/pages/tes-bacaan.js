@@ -565,6 +565,7 @@ function openAddTes(editData = null) {
   }
 
   // Tentukan mode berdasarkan data jika edit
+  const inds = allConfig.indikatorChecklist || [];
   if (editData) {
     // Kalau ada nilai <= 20 dan tidak ada yang > 50, mungkin itu mode kesalahan
     const vals = inds.map((_, i) => Number(editData[`Ind${i+1}`]||0));
