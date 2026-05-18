@@ -235,72 +235,263 @@ function previewRapot(id) {
 }
 
 function renderRapotPreview(r) {
-  const avg=Math.round((Number(r.NilaiBacaan)+Number(r.NilaiTajwid)+Number(r.NilaiHafalan))/3);
-  const kAvg=getNilaiKategori(avg);
-  const penguji=r._penguji||r.Penguji||"Pengurus Markaz Qur'an";
-  const tanggal=new Date(r.Tanggal||Date.now()).toLocaleDateString('id-ID',{day:'numeric',month:'long',year:'numeric'});
-  document.getElementById('rapotPreviewCard').innerHTML=`
-    <div style="text-align:center;border-bottom:3px double var(--primary);padding-bottom:16px;margin-bottom:20px;">
-      <div style="font-size:32px;color:var(--primary);margin-bottom:8px;">&#9676;</div>
-      <h2 style="font-size:18px;font-weight:700;color:var(--primary);">RAPOT SANTRI — MARKAZ QUR'AN</h2>
-      <p style="font-size:12px;color:var(--text-muted);">Periode: ${r.Periode||'-'} &nbsp;|&nbsp; Tanggal: ${tanggal}</p>
+  const avg = Math.round((Number(r.NilaiBacaan) + Number(r.NilaiTajwid) + Number(r.NilaiHafalan)) / 3);
+  const kAvg = getNilaiKategori(avg);
+  const penguji = r._penguji || r.Penguji || "Pengurus Markaz Qur'an";
+  const tanggal = new Date(r.Tanggal || Date.now()).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+  
+  // Ambil metadata santri (seperti kelas)
+  const santri = allSantri.find(s => String(s.STambuk) === String(r.STambuk));
+  const santriKelas = santri?.Kelas || '-';
+
+  // Ambil riwayat evaluasi (ujian) santri
+  const santriTests = allTes.filter(t => String(t.PesertaID) === String(r.STambuk) && t.TipePeserta === 'Santri')
+                            .sort((a, b) => new Date(a.Tanggal) - new Date(b.Tanggal));
+
+  const testRowsHtml = santriTests.length 
+    ? santriTests.map(t => {
+        const k = getNilaiKategori(t.NilaiAkhir);
+        return `
+          <tr style="border-bottom:1px solid #e2e8f0;">
+            <td style="padding:8px 10px;color:#475569;">${fmtDate(t.Tanggal)}</td>
+            <td style="padding:8px 10px;"><span class="badge badge-${t.JenisTes === 'Pre Test' ? 'pretest' : (t.JenisTes === 'Post Test' ? 'posttest' : 'warning')}" style="font-size:9px;padding:2px 6px;">${t.JenisTes}</span></td>
+            <td style="padding:8px 10px;font-weight:600;color:#0f172a;">${t.NamaSurah || '-'} <span style="font-weight:normal;color:#64748b;font-size:11px;">(Ayat ${t.Halaman || 'Semua'})</span></td>
+            <td style="padding:8px 10px;text-align:center;font-weight:700;color:#1b6b4a;font-size:13px;">${t.NilaiAkhir}</td>
+            <td style="padding:8px 10px;text-align:center;"><span class="badge ${k.cls}" style="font-size:9px;padding:2px 6px;">${k.label}</span></td>
+          </tr>
+        `;
+      }).join('')
+    : '<tr><td colspan="5" style="text-align:center;padding:12px;color:#94a3b8;font-style:italic;">Belum ada riwayat tes bacaan</td></tr>';
+
+  // Ambil riwayat setoran hafalan santri
+  const santriHf = allHafalan.filter(h => String(h.STambuk) === String(r.STambuk))
+                             .sort((a, b) => new Date(a.TanggalSetor) - new Date(b.TanggalSetor));
+
+  const hafalanRowsHtml = santriHf.length
+    ? santriHf.map(h => {
+        const stCls = h.Status === 'Selesai' ? 'badge-selesai' : (h.Status === 'Proses' ? 'badge-proses' : 'badge-belum');
+        return `
+          <tr style="border-bottom:1px solid #e2e8f0;">
+            <td style="padding:8px 10px;font-weight:600;color:#0f172a;">${h.NamaSurah || '-'}</td>
+            <td style="padding:8px 10px;text-align:center;color:#475569;">Juz ${h.Juz || '-'}</td>
+            <td style="padding:8px 10px;text-align:center;color:#475569;">Ayat ${h.AyatDari} - ${h.AyatSampai}</td>
+            <td style="padding:8px 10px;text-align:center;"><span class="badge ${stCls}" style="font-size:9px;padding:2px 6px;">${h.Status}</span></td>
+            <td style="padding:8px 10px;color:#475569;">${fmtDate(h.TanggalSetor)}</td>
+          </tr>
+        `;
+      }).join('')
+    : '<tr><td colspan="5" style="text-align:center;padding:12px;color:#94a3b8;font-style:italic;">Belum ada riwayat setoran hafalan</td></tr>';
+
+  document.getElementById('rapotPreviewCard').innerHTML = `
+    <style>
+      @media print {
+        body {
+          background: #fff !important;
+          color: #000 !important;
+        }
+        .sidebar, .topbar, .no-print, .tab-bar, button {
+          display: none !important;
+        }
+        .app-layout {
+          display: block !important;
+          height: auto !important;
+          overflow: visible !important;
+        }
+        .main-content {
+          display: block !important;
+          overflow: visible !important;
+          flex: none !important;
+        }
+        .page-body {
+          padding: 0 !important;
+          overflow: visible !important;
+        }
+        #rapotPreviewCard {
+          border: none !important;
+          box-shadow: none !important;
+          padding: 0 !important;
+          margin: 0 !important;
+          max-width: 100% !important;
+          background: #fff !important;
+        }
+        @page {
+          margin: 1.5cm;
+        }
+      }
+    </style>
+    <!-- KOP INSTANSI RESMI -->
+    <div style="text-align:center;border-bottom:3px double #1b6b4a;padding-bottom:14px;margin-bottom:20px;">
+      <h1 style="font-size:24px;font-weight:800;color:#1b6b4a;margin:0;letter-spacing:1px;text-transform:uppercase;">MARKAZ QUR'AN</h1>
+      <p style="font-size:11px;color:#64748b;margin:4px 0 0 0;text-transform:uppercase;letter-spacing:1.5px;font-weight:600;">Lembaga Pendidikan & Pembinaan Tahsin Tahfidz Qur'an Terpadu</p>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:20px;">
+
+    <h2 style="font-size:15px;font-weight:700;color:#1e293b;text-align:center;margin:15px 0 20px 0;letter-spacing:0.5px;text-transform:uppercase;">RAPOT HASIL EVALUASI SANTRI</h2>
+
+    <!-- GRID DATA SANTRI -->
+    <div style="display:grid;grid-template-columns:1.2fr 1fr;gap:16px;margin-bottom:20px;font-size:13px;background:#f8fafc;padding:15px;border-radius:8px;border:1px solid #e2e8f0;">
       <div>
-        <p style="font-size:12px;color:var(--text-muted);">Stambuk</p><p style="font-weight:600;">${r.STambuk}</p>
-        <p style="font-size:12px;color:var(--text-muted);margin-top:8px;">Nama Santri</p><p style="font-weight:600;">${r.NamaSantri}</p>
+        <table style="width:100%;border-collapse:collapse;">
+          <tr>
+            <td style="border:none;padding:4px 0;color:#64748b;width:100px;">Nama Santri</td>
+            <td style="border:none;padding:4px 0;font-weight:700;color:#0f172a;">: ${r.NamaSantri}</td>
+          </tr>
+          <tr>
+            <td style="border:none;padding:4px 0;color:#64748b;">No. Stambuk</td>
+            <td style="border:none;padding:4px 0;font-family:monospace;font-weight:700;color:#0f172a;">: ${r.STambuk}</td>
+          </tr>
+          <tr>
+            <td style="border:none;padding:4px 0;color:#64748b;">Kelas / Rayon</td>
+            <td style="border:none;padding:4px 0;font-weight:600;color:#334155;">: ${santriKelas}</td>
+          </tr>
+        </table>
       </div>
       <div>
-        <p style="font-size:12px;color:var(--text-muted);">Predikat Akhir</p><span class="badge ${kAvg.cls}">${kAvg.label}</span>
-        <p style="font-size:12px;color:var(--text-muted);margin-top:8px;">Kehadiran</p><p style="font-weight:600;">${r.Kehadiran||0}%</p>
+        <table style="width:100%;border-collapse:collapse;">
+          <tr>
+            <td style="border:none;padding:4px 0;color:#64748b;width:110px;">Periode Evaluasi</td>
+            <td style="border:none;padding:4px 0;font-weight:600;color:#334155;">: ${r.Periode || '-'}</td>
+          </tr>
+          <tr>
+            <td style="border:none;padding:4px 0;color:#64748b;">Predikat Akhir</td>
+            <td style="border:none;padding:4px 0;"><span class="badge ${kAvg.cls}" style="font-size:11px;font-weight:700;padding:2px 8px;">${kAvg.label}</span></td>
+          </tr>
+          <tr>
+            <td style="border:none;padding:4px 0;color:#64748b;">Kehadiran Kelas</td>
+            <td style="border:none;padding:4px 0;font-weight:700;color:#16a34a;">: ${r.Kehadiran||0}%</td>
+          </tr>
+        </table>
       </div>
     </div>
-    <table style="width:100%;border-collapse:collapse;margin-bottom:16px;">
-      <thead><tr>
-        <th style="background:var(--primary);color:#fff;padding:10px 14px;text-align:left;font-size:12px;">Aspek Penilaian</th>
-        <th style="background:var(--primary);color:#fff;padding:10px 14px;text-align:left;font-size:12px;">Nilai</th>
-        <th style="background:var(--primary);color:#fff;padding:10px 14px;text-align:left;font-size:12px;">Kategori</th>
-        <th style="background:var(--primary);color:#fff;padding:10px 14px;text-align:left;font-size:12px;">Progress</th>
-      </tr></thead>
-      <tbody>
-        ${[['Kelancaran Bacaan',r.NilaiBacaan],['Tajwid',r.NilaiTajwid],['Hafalan',r.NilaiHafalan]].map(([asp,n])=>{
-          const k=getNilaiKategori(n);
-          return `<tr style="border-bottom:1px solid var(--border);">
-            <td style="padding:10px 14px;font-weight:600;">${asp}</td>
-            <td style="padding:10px 14px;font-size:18px;font-weight:700;color:var(--primary);">${n}</td>
-            <td style="padding:10px 14px;"><span class="badge ${k.cls}">${k.label}</span></td>
-            <td style="padding:10px 14px;min-width:120px;">
+
+    <!-- ASPEK PENILAIAN UTAMA -->
+    <div style="margin-bottom:24px;">
+      <h4 style="font-size:12px;font-weight:700;color:#1b6b4a;margin:0 0 10px 0;border-bottom:2px solid #1b6b4a;padding-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">I. ASPEK PENILAIAN UTAMA</h4>
+      <table style="width:100%;border-collapse:collapse;margin-bottom:12px;font-size:12px;border:1px solid #cbd5e1;">
+        <thead>
+          <tr style="background:#f1f5f9;">
+            <th style="color:#334155;padding:12px 14px;text-align:left;font-weight:700;border:1px solid #cbd5e1;">Aspek Evaluasi</th>
+            <th style="color:#334155;padding:12px 14px;text-align:center;font-weight:700;border:1px solid #cbd5e1;width:80px;">Nilai</th>
+            <th style="color:#334155;padding:12px 14px;text-align:center;font-weight:700;border:1px solid #cbd5e1;width:120px;">Kategori</th>
+            <th style="color:#334155;padding:12px 14px;text-align:left;font-weight:700;border:1px solid #cbd5e1;">Visualisasi Capaian</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${[['Kelancaran Bacaan', r.NilaiBacaan], ['Tajwid / Makhraj', r.NilaiTajwid], ['Hafalan Al-Qur\'an', r.NilaiHafalan]].map(([asp, n]) => {
+            const k = getNilaiKategori(n);
+            return `
+              <tr style="border-bottom:1px solid #cbd5e1;">
+                <td style="padding:10px 14px;font-weight:700;color:#334155;border:1px solid #cbd5e1;">${asp}</td>
+                <td style="padding:10px 14px;font-size:16px;font-weight:800;color:#1b6b4a;text-align:center;border:1px solid #cbd5e1;">${n}</td>
+                <td style="padding:10px 14px;text-align:center;border:1px solid #cbd5e1;"><span class="badge ${k.cls}" style="font-size:10px;font-weight:700;padding:2px 8px;">${k.label}</span></td>
+                <td style="padding:10px 14px;min-width:140px;border:1px solid #cbd5e1;">
+                  <div style="display:flex;align-items:center;gap:8px;">
+                    <div style="flex:1;background:#e2e8f0;border-radius:99px;height:8px;overflow:hidden;">
+                      <div style="height:100%;border-radius:99px;width:${n}%;background:#1b6b4a;"></div>
+                    </div>
+                    <span style="font-size:11px;color:#64748b;font-weight:600;">${n}%</span>
+                  </div>
+                </td>
+              </tr>`;
+          }).join('')}
+          <tr style="background:#f8fafc;font-weight:700;">
+            <td style="padding:12px 14px;color:#0f172a;border:1px solid #cbd5e1;">RATA-RATA NILAI AKHIR</td>
+            <td style="padding:12px 14px;font-size:18px;font-weight:800;color:#1b6b4a;text-align:center;border:1px solid #cbd5e1;">${avg}</td>
+            <td style="padding:12px 14px;text-align:center;border:1px solid #cbd5e1;"><span class="badge ${kAvg.cls}" style="font-size:11px;font-weight:700;padding:3px 8px;">${kAvg.label}</span></td>
+            <td style="padding:12px 14px;border:1px solid #cbd5e1;">
               <div style="display:flex;align-items:center;gap:8px;">
-                <div style="flex:1;background:var(--border);border-radius:99px;height:8px;overflow:hidden;">
-                  <div style="height:100%;border-radius:99px;width:${n}%;background:linear-gradient(90deg,var(--primary),var(--primary-light));"></div>
+                <div style="flex:1;background:#e2e8f0;border-radius:99px;height:8px;overflow:hidden;">
+                  <div style="height:100%;border-radius:99px;width:${avg}%;background:#1b6b4a;"></div>
                 </div>
-                <span style="font-size:11px;color:var(--text-muted);">${n}%</span>
+                <span style="font-size:11px;color:#1b6b4a;font-weight:700;">${avg}%</span>
               </div>
             </td>
-          </tr>`;
-        }).join('')}
-        <tr style="background:var(--surface2);">
-          <td style="padding:10px 14px;font-weight:700;">Rata-rata</td>
-          <td style="padding:10px 14px;font-size:18px;font-weight:700;color:var(--primary);">${avg}</td>
-          <td style="padding:10px 14px;"><span class="badge ${kAvg.cls}">${kAvg.label}</span></td>
-          <td style="padding:10px 14px;">
-            <div style="display:flex;align-items:center;gap:8px;">
-              <div style="flex:1;background:var(--border);border-radius:99px;height:8px;overflow:hidden;">
-                <div style="height:100%;border-radius:99px;width:${avg}%;background:linear-gradient(90deg,var(--primary),var(--primary-light));"></div>
-              </div>
-              <span style="font-size:11px;color:var(--text-muted);">${avg}%</span>
-            </div>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-    ${r.Catatan?`<div style="margin-bottom:16px;"><p style="font-weight:700;margin-bottom:6px;">Catatan Guru:</p><p style="font-size:13px;background:var(--surface2);padding:12px;border-radius:8px;border-left:3px solid var(--primary);">${r.Catatan}</p></div>`:''}
-    ${r.Rekomendasi?`<div style="margin-bottom:16px;"><p style="font-weight:700;margin-bottom:6px;">Rekomendasi:</p><p style="font-size:13px;background:#fdf3e3;padding:12px;border-radius:8px;border-left:3px solid var(--gold);">${r.Rekomendasi}</p></div>`:''}
-    <div style="margin-top:28px;display:flex;justify-content:flex-end;">
-      <div style="text-align:center;min-width:160px;">
-        <p style="font-size:11px;color:var(--text-muted);">Pengurus Markaz Qur'an</p>
-        <div style="height:60px;"></div>
-        <p style="border-top:1px solid var(--text);padding-top:6px;font-weight:600;font-size:13px;">${penguji}</p>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- DETAIL RIWAYAT EVALUASI BACAAN -->
+    <div style="margin-bottom:24px;">
+      <h4 style="font-size:12px;font-weight:700;color:#1b6b4a;margin:0 0 10px 0;border-bottom:2px solid #1b6b4a;padding-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">II. RIWAYAT EVALUASI HARIAN (BACAAN & TAJWID)</h4>
+      <div style="border:1px solid #e2e8f0;border-radius:6px;overflow:hidden;">
+        <table style="width:100%;border-collapse:collapse;font-size:11px;">
+          <thead>
+            <tr style="background:#f8fafc;border-bottom:1px solid #e2e8f0;">
+              <th style="padding:10px;text-align:left;font-weight:700;color:#475569;width:90px;">Tanggal</th>
+              <th style="padding:10px;text-align:left;font-weight:700;color:#475569;width:100px;">Jenis Evaluasi</th>
+              <th style="padding:10px;text-align:left;font-weight:700;color:#475569;">Materi Ujian (Surah/Ayat)</th>
+              <th style="padding:10px;text-align:center;font-weight:700;color:#475569;width:70px;">Nilai</th>
+              <th style="padding:10px;text-align:center;font-weight:700;color:#475569;width:100px;">Predikat</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${testRowsHtml}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- DETAIL RIWAYAT PROGRESS HAFALAN -->
+    <div style="margin-bottom:24px;">
+      <h4 style="font-size:12px;font-weight:700;color:#1b6b4a;margin:0 0 10px 0;border-bottom:2px solid #1b6b4a;padding-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">III. LAPORAN PERKEMBANGAN SETORAN HAFALAN</h4>
+      <div style="border:1px solid #e2e8f0;border-radius:6px;overflow:hidden;">
+        <table style="width:100%;border-collapse:collapse;font-size:11px;">
+          <thead>
+            <tr style="background:#f8fafc;border-bottom:1px solid #e2e8f0;">
+              <th style="padding:10px;text-align:left;font-weight:700;color:#475569;">Nama Surah</th>
+              <th style="padding:10px;text-align:center;font-weight:700;color:#475569;width:80px;">Juz</th>
+              <th style="padding:10px;text-align:center;font-weight:700;color:#475569;width:120px;">Rentang Ayat</th>
+              <th style="padding:10px;text-align:center;font-weight:700;color:#475569;width:100px;">Status</th>
+              <th style="padding:10px;text-align:left;font-weight:700;color:#475569;width:100px;">Tanggal Setor</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${hafalanRowsHtml}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- KETENTUAN DAN FORMULA PENILAIAN -->
+    <div style="background:#f1f5f9;border-radius:6px;padding:12px;font-size:11px;color:#475569;margin-bottom:24px;line-height:1.5;border:1px solid #e2e8f0;">
+      <strong style="color:#334155;">Informasi & Ketentuan Perhitungan Penilaian:</strong>
+      <ul style="margin:4px 0 0 0;padding-left:18px;color:#475569;">
+        <li><strong>Nilai Kelancaran Bacaan & Tajwid</strong>: Diperoleh berdasarkan rata-rata murni dari seluruh ujian harian yang diselenggarakan (Post Test & Remedial).</li>
+        <li><strong>Nilai Hafalan Al-Qur'an</strong>: Dihitung secara berkala dari total surah yang diselesaikan (Status: Selesai) terhadap target periode evaluasi.</li>
+        <li><strong>Rata-rata Nilai Akhir</strong>: Hasil pembagian akumulatif ketiga aspek utama dengan bobot yang sama: <code>(Bacaan + Tajwid + Hafalan) / 3</code>.</li>
+      </ul>
+    </div>
+
+    <!-- PANEL CATATAN DAN REKOMENDASI -->
+    <div style="display:grid;grid-template-columns:${r.Catatan && r.Rekomendasi ? '1fr 1fr' : '1fr'};gap:16px;margin-bottom:30px;">
+      ${r.Catatan ? `
+        <div>
+          <h4 style="font-size:12px;font-weight:700;color:#334155;margin:0 0 6px 0;text-transform:uppercase;">Catatan Guru / Wali Kelas:</h4>
+          <div style="font-size:12px;background:#f8fafc;padding:12px;border-radius:8px;border-left:4px solid #1b6b4a;border-top:1px solid #e2e8f0;border-right:1px solid #e2e8f0;border-bottom:1px solid #e2e8f0;min-height:80px;line-height:1.5;color:#334155;">
+            ${r.Catatan}
+          </div>
+        </div>
+      ` : ''}
+      ${r.Rekomendasi ? `
+        <div>
+          <h4 style="font-size:12px;font-weight:700;color:#334155;margin:0 0 6px 0;text-transform:uppercase;">Rekomendasi Tindak Lanjut:</h4>
+          <div style="font-size:12px;background:#fdfdf6;padding:12px;border-radius:8px;border-left:4px solid #d97706;border-top:1px solid #fef3c7;border-right:1px solid #fef3c7;border-bottom:1px solid #fef3c7;min-height:80px;line-height:1.5;color:#78350f;">
+            ${r.Rekomendasi}
+          </div>
+        </div>
+      ` : ''}
+    </div>
+
+    <!-- TANDA TANGAN GANDA RESMI -->
+    <div style="margin-top:35px;display:flex;justify-content:space-between;font-size:13px;padding:0 20px;">
+      <div style="text-align:center;width:200px;">
+        <p style="color:#475569;margin-bottom:65px;">Orang Tua / Wali Santri</p>
+        <p style="border-bottom:1.5px solid #475569;padding-bottom:3px;font-weight:700;color:#0f172a;display:inline-block;min-width:160px;"></p>
+      </div>
+      <div style="text-align:center;width:220px;">
+        <p style="color:#475569;margin-bottom:0;">Kediri, ${tanggal}</p>
+        <p style="color:#475569;margin-top:2px;margin-bottom:65px;font-weight:500;">Wali Kelas / Penguji</p>
+        <p style="border-bottom:1.5px solid #475569;padding-bottom:3px;font-weight:700;color:#0f172a;display:inline-block;min-width:160px;">${penguji}</p>
       </div>
     </div>`;
 }
