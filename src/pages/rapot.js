@@ -33,8 +33,8 @@ export async function renderRapot(container) {
         <div class="card-header"><h3>Riwayat Rapot</h3><span class="text-muted" id="rapotCount">-</span></div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>#</th><th>Stambuk</th><th>Nama</th><th>Periode</th><th>Bacaan</th><th>Tajwid</th><th>Hafalan</th><th>Kehadiran</th><th>Tanggal</th><th>Aksi</th></tr></thead>
-            <tbody id="rapotBody"><tr><td colspan="10" class="no-data">Memuat...</td></tr></tbody>
+            <thead><tr><th>#</th><th>Stambuk</th><th>Nama</th><th>Periode</th><th>Bacaan</th><th>Tajwid</th><th>Hafalan</th><th>Tanggal</th><th>Aksi</th></tr></thead>
+            <tbody id="rapotBody"><tr><td colspan="9" class="no-data">Memuat...</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -65,7 +65,7 @@ export async function renderRapot(container) {
             <div class="form-group"><label>Nilai Kelancaran Bacaan *</label><input type="number" id="genBacaan" min="0" max="100" placeholder="85"></div>
             <div class="form-group"><label>Nilai Tajwid *</label><input type="number" id="genTajwid" min="0" max="100" placeholder="80"></div>
             <div class="form-group"><label>Nilai Hafalan *</label><input type="number" id="genHafalan" min="0" max="100" placeholder="90"></div>
-            <div class="form-group"><label>Kehadiran (%)</label><input type="number" id="genKehadiran" min="0" max="100" placeholder="95"></div>
+            <input type="hidden" id="genKehadiran" value="0">
             <div class="form-group"><label>Tanggal Rapot</label><input type="date" id="genTanggal"></div>
             <div class="form-group"><label>Nama Penandatangan</label><input type="text" id="genPenguji" placeholder="Nama guru/pengurus"></div>
             <div class="form-group full"><label>Catatan Guru</label><textarea id="genCatatan" placeholder="Catatan perkembangan santri..."></textarea></div>
@@ -147,7 +147,7 @@ function renderNilaiCell(n) {
 
 function renderRapotTable(data) {
   document.getElementById('rapotCount').textContent=data.length+' rapot';
-  if(!data.length){document.getElementById('rapotBody').innerHTML='<tr><td colspan="10" class="no-data">Belum ada rapot</td></tr>';return;}
+  if(!data.length){document.getElementById('rapotBody').innerHTML='<tr><td colspan="9" class="no-data">Belum ada rapot</td></tr>';return;}
   document.getElementById('rapotBody').innerHTML=[...data].reverse().map((r,i)=>`
     <tr>
       <td style="color:var(--text-muted);font-size:12px;">${i+1}</td>
@@ -157,7 +157,6 @@ function renderRapotTable(data) {
       <td>${renderNilaiCell(r.NilaiBacaan)}</td>
       <td>${renderNilaiCell(r.NilaiTajwid)}</td>
       <td>${renderNilaiCell(r.NilaiHafalan)}</td>
-      <td>${r.Kehadiran||0}%</td>
       <td style="font-size:12px;">${fmtDate(r.Tanggal)}</td>
       <td>
         <div class="flex gap-8">
@@ -178,17 +177,19 @@ function onSantriChange() {
   const sel=document.getElementById('genSantri');
   const stambuk=sel.value;
   if(!stambuk){document.getElementById('autoFillInfo').style.display='none';return;}
-  const santriTes=allTes.filter(t=>String(t.PesertaID)===String(stambuk)&&t.TipePeserta==='Santri');
-  const src=santriTes.filter(t=>t.JenisTes==='Post Test').length?santriTes.filter(t=>t.JenisTes==='Post Test'):santriTes;
-  const avgNilai=src.length?Math.round(src.reduce((a,b)=>a+Number(b.NilaiAkhir),0)/src.length):0;
+  const santriTes=allTes.filter(t=>String(t.PesertaID)===String(stambuk)&&t.TipePeserta==='Santri')
+                        .sort((a,b) => new Date(b.Tanggal) - new Date(a.Tanggal));
+  const latestTes=santriTes[0];
+  const latestNilai=latestTes ? Number(latestTes.NilaiAkhir) : 0;
   const santriHf=allHafalan.filter(h=>String(h.STambuk)===String(stambuk));
   const selesai=santriHf.filter(h=>h.Status==='Selesai').length;
   const hfPct=santriHf.length?Math.round(selesai/santriHf.length*100):0;
-  if(avgNilai){document.getElementById('genBacaan').value=avgNilai;document.getElementById('genTajwid').value=avgNilai;}
+  if(latestNilai){document.getElementById('genBacaan').value=latestNilai;document.getElementById('genTajwid').value=latestNilai;}
   if(hfPct) document.getElementById('genHafalan').value=hfPct;
   const nama=sel.options[sel.selectedIndex].dataset.nama;
   let msg=`Auto-fill untuk ${nama}: `;
-  if(src.length) msg+=`Rata-rata nilai ${avgNilai}. `;
+  if(latestTes) msg+=`Nilai terakhir (${latestTes.JenisTes} - ${latestTes.NamaSurah}): ${latestNilai}. `;
+  else msg+=`Belum ada tes evaluasi. `;
   if(santriHf.length) msg+=`Hafalan ${selesai}/${santriHf.length} selesai (${hfPct}%).`;
   document.getElementById('autoFillText').textContent=msg;
   document.getElementById('autoFillInfo').style.display='block';
@@ -323,12 +324,13 @@ function renderRapotPreview(r) {
     <div style="text-align:center;border-bottom:3px double #1b6b4a;padding-bottom:14px;margin-bottom:20px;">
       <h1 style="font-size:24px;font-weight:800;color:#1b6b4a;margin:0;letter-spacing:1px;text-transform:uppercase;">MARKAZ QUR'AN</h1>
       <p style="font-size:11px;color:#64748b;margin:4px 0 0 0;text-transform:uppercase;letter-spacing:1.5px;font-weight:600;">Lembaga Pendidikan & Pembinaan Tahsin Tahfidz Qur'an Terpadu</p>
+      ${r.Periode ? `<p style="font-size:12px;color:#1b6b4a;margin:8px 0 0 0;font-weight:700;letter-spacing:1px;text-transform:uppercase;">PERIODE EVALUASI: ${r.Periode}</p>` : ''}
     </div>
 
     <h2 style="font-size:15px;font-weight:700;color:#1e293b;text-align:center;margin:15px 0 20px 0;letter-spacing:0.5px;text-transform:uppercase;">RAPOT HASIL EVALUASI SANTRI</h2>
 
     <!-- GRID DATA SANTRI -->
-    <div style="display:grid;grid-template-columns:1.2fr 1fr;gap:16px;margin-bottom:20px;font-size:13px;background:#f8fafc;padding:15px;border-radius:8px;border:1px solid #e2e8f0;">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;font-size:13px;background:#f8fafc;padding:15px;border-radius:8px;border:1px solid #e2e8f0;">
       <div>
         <table style="width:100%;border-collapse:collapse;">
           <tr>
@@ -339,25 +341,17 @@ function renderRapotPreview(r) {
             <td style="border:none;padding:4px 0;color:#64748b;">No. Stambuk</td>
             <td style="border:none;padding:4px 0;font-family:monospace;font-weight:700;color:#0f172a;">: ${r.STambuk}</td>
           </tr>
-          <tr>
-            <td style="border:none;padding:4px 0;color:#64748b;">Kelas / Rayon</td>
-            <td style="border:none;padding:4px 0;font-weight:600;color:#334155;">: ${santriKelas}</td>
-          </tr>
         </table>
       </div>
       <div>
         <table style="width:100%;border-collapse:collapse;">
           <tr>
-            <td style="border:none;padding:4px 0;color:#64748b;width:110px;">Periode Evaluasi</td>
-            <td style="border:none;padding:4px 0;font-weight:600;color:#334155;">: ${r.Periode || '-'}</td>
+            <td style="border:none;padding:4px 0;color:#64748b;width:110px;">Kelas / Rayon</td>
+            <td style="border:none;padding:4px 0;font-weight:600;color:#334155;">: ${santriKelas}</td>
           </tr>
           <tr>
             <td style="border:none;padding:4px 0;color:#64748b;">Predikat Akhir</td>
             <td style="border:none;padding:4px 0;"><span class="badge ${kAvg.cls}" style="font-size:11px;font-weight:700;padding:2px 8px;">${kAvg.label}</span></td>
-          </tr>
-          <tr>
-            <td style="border:none;padding:4px 0;color:#64748b;">Kehadiran Kelas</td>
-            <td style="border:none;padding:4px 0;font-weight:700;color:#16a34a;">: ${r.Kehadiran||0}%</td>
           </tr>
         </table>
       </div>
@@ -456,7 +450,7 @@ function renderRapotPreview(r) {
     <div style="background:#f1f5f9;border-radius:6px;padding:12px;font-size:11px;color:#475569;margin-bottom:24px;line-height:1.5;border:1px solid #e2e8f0;">
       <strong style="color:#334155;">Informasi & Ketentuan Perhitungan Penilaian:</strong>
       <ul style="margin:4px 0 0 0;padding-left:18px;color:#475569;">
-        <li><strong>Nilai Kelancaran Bacaan & Tajwid</strong>: Diperoleh berdasarkan rata-rata murni dari seluruh ujian harian yang diselenggarakan (Post Test & Remedial).</li>
+        <li><strong>Nilai Kelancaran Bacaan & Tajwid</strong>: Diperoleh berdasarkan nilai evaluasi paling akhir (terbaru) yang diikuti santri.</li>
         <li><strong>Nilai Hafalan Al-Qur'an</strong>: Dihitung secara berkala dari total surah yang diselesaikan (Status: Selesai) terhadap target periode evaluasi.</li>
         <li><strong>Rata-rata Nilai Akhir</strong>: Hasil pembagian akumulatif ketiga aspek utama dengan bobot yang sama: <code>(Bacaan + Tajwid + Hafalan) / 3</code>.</li>
       </ul>
