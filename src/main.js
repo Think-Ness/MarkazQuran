@@ -62,10 +62,12 @@ function renderPage(page) {
 
   app.innerHTML = `
     <div class="app-layout">
+      <div class="sidebar-overlay" id="sidebarOverlay"></div>
       <aside class="sidebar" id="sidebar">${renderNav(page)}</aside>
       <div class="main-content">
         <div class="topbar">
-          <div class="topbar-title">
+          <div class="topbar-title" style="display:flex;align-items:center;gap:12px;">
+            <button class="btn-toggle-sidebar no-print" id="btnToggleSidebar" style="display:none;background:none;border:none;font-size:22px;cursor:pointer;color:var(--text);">&#9776;</button>
             <h1>${route.title}</h1>
           </div>
           <div class="topbar-right">
@@ -85,6 +87,29 @@ function renderPage(page) {
   setTopbarDate();
   initModalClose();
   route.render(document.getElementById('page-body'));
+
+  // Mobile Sidebar Toggle
+  const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('sidebarOverlay');
+  const toggleBtn = document.getElementById('btnToggleSidebar');
+
+  function toggleSidebar() {
+    sidebar.classList.toggle('open');
+    overlay.classList.toggle('show');
+  }
+
+  if (toggleBtn) toggleBtn.onclick = toggleSidebar;
+  if (overlay) overlay.onclick = toggleSidebar;
+  
+  // Close sidebar on nav click in mobile
+  sidebar.querySelectorAll('.nav-item').forEach(el => {
+    el.addEventListener('click', () => {
+      if (window.innerWidth <= 768) {
+        sidebar.classList.remove('open');
+        overlay.classList.remove('show');
+      }
+    });
+  });
 }
 
 // ── Router ────────────────────────────────────────────────────
