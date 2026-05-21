@@ -4,7 +4,8 @@
 // =============================================================================
 const SHEET = {
   SANTRI:'MasterSantri', GURU:'MasterGuru', TES_BACAAN:'TesBacaan',
-  CHECKLIST:'ChecklistBacaan', HAFALAN:'Hafalan', RAPOT:'Rapot', CONFIG:'Config'
+  CHECKLIST:'ChecklistBacaan', HAFALAN:'Hafalan', RAPOT:'Rapot',
+  CONFIG:'Config', SESI_UJIAN:'SesiUjian'
 };
 
 function doGet(e) {
@@ -24,7 +25,8 @@ function doPost(e) {
       getTesBacaan, addTesBacaan, updateTesBacaan, deleteTesBacaan,
       getHafalan, addHafalan, updateHafalan, deleteHafalan,
       getRapot, saveRapot, deleteRapot,
-      getDashboardStats, getSurahList, setupSpreadsheet,
+      getSesiUjian, addSesiUjian, updateSesiUjian, deleteSesiUjian,
+      getDashboardStats, getSurahList, setupSpreadsheet, setupSesiUjianSheet,
       getConfig, saveConfig
     };
     if (!map[action]) { out.setContent(JSON.stringify({ok:false,msg:'Unknown action: '+action})); return out; }
@@ -45,12 +47,13 @@ function getSheet(name) {
 }
 function initHeaders(sh, name) {
   const h = {
-    [SHEET.SANTRI]    :['STambuk','Nama','Kelas','Daerah','Rayon','Kamar','TanggalMasuk','Status'],
-    [SHEET.GURU]      :['IDGuru','Nama','Tahun','KamarBagian','Status'],
-    [SHEET.TES_BACAAN]:['ID','TipePeserta','PesertaID','IDPenguji','Tanggal','NoSurah','NamaSurah','Halaman','JenisTes','Ind1','Ind2','Ind3','Ind4','Ind5','Ind6','Ind7','Ind8','Ind9','Ind10','NilaiAkhir','Catatan','Timestamp'],
-    [SHEET.HAFALAN]   :['ID','STambuk','IDPenguji','NoSurah','NamaSurah','Juz','AyatDari','AyatSampai','Status','TanggalSetor','Catatan','Timestamp'],
-    [SHEET.RAPOT]     :['ID','STambuk','NamaSantri','Periode','NilaiBacaan','NilaiTajwid','NilaiHafalan','Kehadiran','Catatan','Rekomendasi','Tanggal','Timestamp'],
-    [SHEET.CONFIG]    :['Key','Value']
+    [SHEET.SANTRI]     :['STambuk','Nama','Kelas','Daerah','Rayon','Kamar','TanggalMasuk','Status'],
+    [SHEET.GURU]       :['IDGuru','Nama','Tahun','KamarBagian','Status'],
+    [SHEET.TES_BACAAN] :['ID','TipePeserta','PesertaID','IDPenguji','Tanggal','NoSurah','NamaSurah','Halaman','JenisTes','Ind1','Ind2','Ind3','Ind4','Ind5','Ind6','Ind7','Ind8','Ind9','Ind10','NilaiAkhir','Catatan','Timestamp'],
+    [SHEET.HAFALAN]    :['ID','STambuk','IDPenguji','NoSurah','NamaSurah','Juz','AyatDari','AyatSampai','Status','TanggalSetor','Catatan','Timestamp'],
+    [SHEET.RAPOT]      :['ID','STambuk','NamaSantri','Periode','NilaiBacaan','NilaiTajwid','NilaiHafalan','Kehadiran','Catatan','Rekomendasi','Tanggal','Timestamp'],
+    [SHEET.CONFIG]     :['Key','Value'],
+    [SHEET.SESI_UJIAN] :['SesiID','NamaSesi','TipeSesi','Tanggal','PenanggungJawab','Peserta','TargetUjian','Status','Timestamp']
   };
   if (h[name]) sh.appendRow(h[name]);
 }
@@ -298,4 +301,132 @@ function saveConfig(data) {
     Object.entries(data).forEach(([k,v])=>{sh.appendRow([k,typeof v==='object'?JSON.stringify(v):String(v)]);});
     return JSON.stringify({ok:true});
   } catch(e){return JSON.stringify({ok:false,msg:e.message});}
+}
+
+// ── Sesi Ujian ────────────────────────────────────────────────
+function getSesiUjian() {
+  try { return JSON.stringify(sheetToObjects(getSheet(SHEET.SESI_UJIAN))); }
+  catch(e){return JSON.stringify({ok:false,msg:e.message});}
+}
+
+function addSesiUjian(d) {
+  try {
+    const id = genId('SESI-');
+    const sh = getSheet(SHEET.SESI_UJIAN);
+    sh.appendRow([
+      id,
+      d.NamaSesi        || '',
+      d.TipeSesi        || '',
+      d.Tanggal         || '',
+      d.PenanggungJawab || '',
+      typeof d.Peserta      === 'object' ? JSON.stringify(d.Peserta)      : (d.Peserta      || '[]'),
+      typeof d.TargetUjian  === 'object' ? JSON.stringify(d.TargetUjian)  : (d.TargetUjian  || '[]'),
+      d.Status          || 'Aktif',
+      new Date().toISOString()
+    ]);
+    return JSON.stringify({ok:true, id});
+  } catch(e){return JSON.stringify({ok:false,msg:e.message});}
+}
+
+function updateSesiUjian(d) {
+  try {
+    const sh=getSheet(SHEET.SESI_UJIAN), vals=sh.getDataRange().getValues();
+    for(let i=1;i<vals.length;i++){
+      if(String(vals[i][0])===String(d.SesiID)){
+        sh.getRange(i+1,2,1,7).setValues([[
+          d.NamaSesi        || '',
+          d.TipeSesi        || '',
+          d.Tanggal         || '',
+          d.PenanggungJawab || '',
+          typeof d.Peserta      === 'object' ? JSON.stringify(d.Peserta)      : (d.Peserta      || '[]'),
+          typeof d.TargetUjian  === 'object' ? JSON.stringify(d.TargetUjian)  : (d.TargetUjian  || '[]'),
+          d.Status          || 'Aktif'
+        ]]);
+        return JSON.stringify({ok:true});
+      }
+    }
+    return JSON.stringify({ok:false,msg:'Sesi tidak ditemukan'});
+  } catch(e){return JSON.stringify({ok:false,msg:e.message});}
+}
+
+function deleteSesiUjian(id) {
+  try {
+    const sh=getSheet(SHEET.SESI_UJIAN),vals=sh.getDataRange().getValues();
+    for(let i=1;i<vals.length;i++){
+      if(String(vals[i][0])===String(id)){sh.deleteRow(i+1);return JSON.stringify({ok:true});}
+    }
+    return JSON.stringify({ok:false,msg:'Sesi tidak ditemukan'});
+  } catch(e){return JSON.stringify({ok:false,msg:e.message});}
+}
+
+/**
+ * setupSesiUjianSheet()
+ * ─────────────────────
+ * Jalankan fungsi ini SATU KALI dari Apps Script Editor:
+ *   1. Buka Apps Script (Ekstensi > Apps Script)
+ *   2. Pilih fungsi "setupSesiUjianSheet" di dropdown
+ *   3. Klik tombol "Jalankan (▶)"
+ *
+ * Fungsi ini akan:
+ *   - Membuat sheet "SesiUjian" jika belum ada
+ *   - Membersihkan header yang salah (jika ada)
+ *   - Mengisi 9 header kolom secara akurat
+ *   - Menebalkan & mewarnai baris header
+ *   - Membekukan baris pertama (freeze row 1)
+ *   - Merapikan lebar kolom otomatis
+ */
+function setupSesiUjianSheet() {
+  const ss        = SpreadsheetApp.getActiveSpreadsheet();
+  const sheetName = SHEET.SESI_UJIAN; // 'SesiUjian'
+  const HEADERS   = ['SesiID','NamaSesi','TipeSesi','Tanggal','PenanggungJawab','Peserta','TargetUjian','Status','Timestamp'];
+
+  // Hapus sheet lama jika ada dan headernya salah, lalu buat ulang
+  let sh = ss.getSheetByName(sheetName);
+
+  if (sh) {
+    // Cek apakah header sudah benar
+    const existing = sh.getRange(1,1,1,HEADERS.length).getValues()[0];
+    const isCorrect = HEADERS.every((h,i) => existing[i] === h);
+    if (!isCorrect) {
+      // Bersihkan header baris pertama saja
+      sh.getRange(1, 1, 1, sh.getLastColumn()).clearContent();
+      sh.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
+      Logger.log('✅ Header SesiUjian diperbaiki.');
+    } else {
+      Logger.log('✅ Header SesiUjian sudah benar, tidak ada perubahan.');
+    }
+  } else {
+    // Buat sheet baru
+    sh = ss.insertSheet(sheetName);
+    sh.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
+    Logger.log('✅ Sheet "SesiUjian" baru dibuat.');
+  }
+
+  // Styling header
+  const headerRange = sh.getRange(1, 1, 1, HEADERS.length);
+  headerRange
+    .setBackground('#1a73e8')       // Biru Google
+    .setFontColor('#ffffff')         // Putih
+    .setFontWeight('bold')
+    .setHorizontalAlignment('center');
+
+  // Freeze baris pertama
+  sh.setFrozenRows(1);
+
+  // Auto-resize kolom
+  sh.autoResizeColumns(1, HEADERS.length);
+
+  // Lebar minimum untuk kolom JSON (Peserta & TargetUjian)
+  sh.setColumnWidth(6, 250); // Peserta
+  sh.setColumnWidth(7, 250); // TargetUjian
+
+  SpreadsheetApp.flush();
+  Logger.log('🎉 setupSesiUjianSheet() selesai! Sheet siap digunakan.');
+  SpreadsheetApp.getUi().alert(
+    '✅ Setup Berhasil!',
+    'Sheet "SesiUjian" sudah disiapkan dengan benar.\n\n' +
+    'Headers: ' + HEADERS.join(', ') + '\n\n' +
+    'Sekarang silakan Deploy ulang (Deploy > Versi Baru) agar perubahan code aktif.',
+    SpreadsheetApp.getUi().ButtonSet.OK
+  );
 }

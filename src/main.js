@@ -7,6 +7,7 @@ import { renderTesBacaan } from './pages/tes-bacaan.js';
 import { renderHafalan }   from './pages/hafalan.js';
 import { renderRapot }     from './pages/rapot.js';
 import { renderSetup }     from './pages/setup.js';
+import { renderSesiUjian } from './pages/sesi-ujian.js';
 
 const ROUTES = {
   dashboard  : { title:'Dashboard',       render: renderDashboard },
@@ -14,12 +15,15 @@ const ROUTES = {
   guru       : { title:'Data Guru',       render: renderGuru },
   'tes-bacaan':{ title:'Tes Bacaan',       render: renderTesBacaan },
   hafalan    : { title:'Hafalan',         render: renderHafalan },
+  'sesi-ujian':{ title:'Sesi Ujian',      render: renderSesiUjian },
   rapot      : { title:'Rapot Santri',    render: renderRapot },
   setup      : { title:'Pengaturan',      render: renderSetup }
 };
 
 function getCurrentPage() {
-  return window.location.hash.replace('#','') || 'dashboard';
+  const hash = window.location.hash.replace('#', '');
+  const page = hash.split('?')[0];
+  return page || 'dashboard';
 }
 
 function navigate(page) {
@@ -31,8 +35,9 @@ function renderNav(currentPage) {
     { page:'dashboard',   icon:'&#9632;', label:'Dashboard',    group:'Utama' },
     { page:'santri',      icon:'&#9679;', label:'Data Santri',  group:'Master Data' },
     { page:'guru',        icon:'&#9679;', label:'Data Guru',    group:'Master Data' },
-    { page:'tes-bacaan',  icon:'&#9632;', label:'Tes Bacaan',   group:'Monitoring' },
-    { page:'hafalan',     icon:'&#9632;', label:'Hafalan',      group:'Monitoring' },
+    { page:'sesi-ujian',  icon:'&#9632;', label:'Sesi Ujian',   group:'Evaluasi' },
+    { page:'tes-bacaan',  icon:'&#9632;', label:'Tes Bacaan',   group:'Evaluasi' },
+    { page:'hafalan',     icon:'&#9632;', label:'Hafalan',      group:'Evaluasi' },
     { page:'rapot',       icon:'&#9632;', label:'Rapot Santri', group:'Output' },
     { page:'setup',       icon:'&#9881;', label:'Pengaturan',   group:'Sistem' },
   ];
@@ -56,7 +61,7 @@ function renderNav(currentPage) {
     <div class="sidebar-footer">Markaz Qur'an &copy; ${new Date().getFullYear()}</div>`;
 }
 
-function renderPage(page) {
+async function renderPage(page) {
   const route = ROUTES[page] || ROUTES['dashboard'];
   const app   = document.getElementById('app');
 
@@ -86,7 +91,7 @@ function renderPage(page) {
 
   setTopbarDate();
   initModalClose();
-  route.render(document.getElementById('page-body'));
+  await route.render(document.getElementById('page-body'));
 
   // Mobile Sidebar Toggle
   const sidebar = document.getElementById('sidebar');
@@ -116,8 +121,8 @@ function renderPage(page) {
 window.navigate = navigate;
 
 window.addEventListener('hashchange', () => {
-  renderPage(getCurrentPage());
+  void renderPage(getCurrentPage());
 });
 
 // Init
-renderPage(getCurrentPage());
+void renderPage(getCurrentPage());

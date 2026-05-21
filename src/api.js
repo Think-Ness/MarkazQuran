@@ -1,5 +1,5 @@
 // GAS API URL — ganti dengan URL deploy GAS Anda
-export const GAS_URL = 'https://script.google.com/macros/s/AKfycbyULrAm9Um_Sbzd6Ybw-Osr21tg__CWOwAk-8cfCJfyfal1FrkedZU6Nw_akCOoeL0F/exec';
+export const GAS_URL = 'https://script.google.com/macros/s/AKfycbxYLUiOxaImSz73cID3M1L-ScSB7gNTnScY7BTAWM13f25jwQvKFK6lMtIRScloSdU/exec';
 
 /**
  * Panggil GAS API
@@ -46,4 +46,9 @@ export const getDashboardStats = ()    => api('getDashboardStats');
 export const getSurahList      = ()    => api('getSurahList');
 export const getConfig         = ()    => api('getConfig');
 export const saveConfig        = (d)   => api('saveConfig', d);
+
+export const getSesiUjian      = ()    => api('getSesiUjian');
+export const addSesiUjian      = (d)   => api('addSesiUjian', d);
+export const updateSesiUjian   = (d)   => api('updateSesiUjian', d);
+export const deleteSesiUjian   = (id)  => api('deleteSesiUjian', id);
 

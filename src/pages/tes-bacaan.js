@@ -1,15 +1,15 @@
-import { getTesBacaan, addTesBacaan, updateTesBacaan, deleteTesBacaan, getSantri, getGuru, getSurahList, getConfig } from '../api.js';
+import { getTesBacaan, addTesBacaan, updateTesBacaan, deleteTesBacaan, getSantri, getGuru, getSurahList, getConfig, getSesiUjian } from '../api.js';
 import { getNilaiKategori, fmtDate, showToast } from '../utils.js';
 import { SearchableSelect } from '../components/searchable-select.js';
 
-let allTes=[], allSantri=[], allGuru=[], allSurah=[], allConfig={}, activeTab='tes', activeRekapData=[];
+let allTes=[], allSantri=[], allGuru=[], allSurah=[], allConfig={}, allSesi=[], activeTab='tes', activeRekapData=[];
 let ssPesertaTes, ssPengujiTes, ssSurahTes;
 
 export async function renderTesBacaan(container) {
   container.innerHTML = `
     <div class="page-header">
       <div><h2>Monitoring Tes Bacaan & Evaluasi</h2><p>Pre Test, Post Test & Rekap Remedial Terintegrasi</p></div>
-      <button class="btn btn-primary" id="btnAddTes" style="display:flex;align-items:center;gap:6px;"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Input Tes Evaluasi</button>
+      <button class="btn btn-primary" id="btnAddTes" style="display:flex;align-items:center;gap:6px;"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Input Pre Test</button>
     </div>
 
     <div class="tab-bar">
@@ -92,6 +92,7 @@ export async function renderTesBacaan(container) {
         </div>
         <div class="modal-body">
           <div id="tesAlert"></div>
+          <input type="hidden" id="tSesiID" value="">
           <div class="form-grid">
             <div class="form-group">
               <label>Tipe Peserta</label>
@@ -139,10 +140,8 @@ export async function renderTesBacaan(container) {
                 <h4 style="margin:0;">Penilaian Evaluasi</h4>
                 <button type="button" class="btn btn-outline btn-sm" style="padding:2px 8px;font-size:10px;height:auto;min-height:auto;border-radius:12px;" onclick="document.getElementById('infoRentangNilai').style.display=document.getElementById('infoRentangNilai').style.display==='none'?'block':'none'">&#9432; Panduan Nilai</button>
               </div>
-              <select id="tModePenilaian" style="width:auto;font-size:12px;padding:4px 8px;border-radius:6px;border:1px solid var(--border);">
-                <option value="nilai">Input Nilai (0-100)</option>
-                <option value="kesalahan">Input Jml Kesalahan</option>
-              </select>
+              <span style="font-size:12px;padding:4px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text-muted);font-weight:600;">Mode: Jumlah Kesalahan</span>
+              <input type="hidden" id="tModePenilaian" value="kesalahan">
             </div>
             <div id="infoRentangNilai" style="display:none;background:var(--surface2);padding:12px;border-radius:8px;font-size:12px;margin-bottom:12px;border:1px solid var(--border);"></div>
             <div id="wrapIndikator" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;background:var(--surface2);padding:16px;border-radius:8px;">
@@ -178,7 +177,7 @@ export async function renderTesBacaan(container) {
     if(activeTab === 'rekap') filterRekap();
   });
 
-  document.getElementById('btnAddTes').onclick  = openAddTes;
+  document.getElementById('btnAddTes').onclick  = () => openAddTes(null, 'Pre Test', true);
   document.getElementById('btnRefreshTes').onclick = loadAll;
   
   // Filter Tes
@@ -194,10 +193,6 @@ export async function renderTesBacaan(container) {
 
   document.getElementById('tTipe').onchange     = () => {
     if(ssPesertaTes) ssPesertaTes.setOptions(buildPesertaOpts(document.getElementById('tTipe').value));
-  };
-  document.getElementById('tModePenilaian').onchange = () => {
-    renderIndikatorInputs(null);
-    calculateNilaiAkhir();
   };
   document.getElementById('tesSaveBtn').onclick = saveTes;
 }
@@ -225,12 +220,13 @@ async function loadAll() {
   const safeParseArr = r => Array.isArray(r) ? r : (typeof r === 'string' ? JSON.parse(r) : []);
   const safeParseObj = r => typeof r === 'string' ? JSON.parse(r) : (r || {});
   
-  [allSantri, allGuru, allSurah, allTes, allConfig] = await Promise.all([
+  [allSantri, allGuru, allSurah, allTes, allConfig, allSesi] = await Promise.all([
     getSantri().then(safeParseArr),
     getGuru().then(safeParseArr),
     getSurahList().then(safeParseArr),
     getTesBacaan().then(safeParseArr),
-    getConfig().then(safeParseObj)
+    getConfig().then(safeParseObj),
+    getSesiUjian().then(safeParseArr)
   ]);
 
   // Centralized cleanup to prevent Google Sheets auto-date conversion bugs
@@ -239,8 +235,8 @@ async function loadAll() {
     Halaman: formatHalaman(t.Halaman)
   }));
 
-  filterTes();
-  if (activeTab === 'rekap') filterRekap();
+  if (document.getElementById('srchTes')) filterTes();
+  if (activeTab === 'rekap' && document.getElementById('srchRekap')) filterRekap();
 }
 
 // ── Searchable select builders ────────────────────────────────
@@ -310,10 +306,40 @@ function getPesertaNama(tipe, id) {
   return getGuruNama(id);
 }
 
+function getBestTestRecord(records) {
+  if (!records || !records.length) return null;
+  return records.reduce((best, cur) =>
+    Number(cur.NilaiAkhir) > Number(best.NilaiAkhir) ? cur : best
+  );
+}
+
+function getParticipantTestStatus(participantTests) {
+  const preTests = participantTests.filter(t => t.JenisTes === 'Pre Test');
+  const postTests = participantTests.filter(t => t.JenisTes === 'Post Test');
+  const remedials = participantTests.filter(t => t.JenisTes === 'Remedial');
+  const bestPost = getBestTestRecord(postTests);
+  const lastPre = [...preTests].sort((a,b) => new Date(b.Tanggal) - new Date(a.Tanggal))[0] || null;
+  const lastPost = [...postTests].sort((a,b) => new Date(b.Tanggal) - new Date(a.Tanggal))[0] || null;
+
+  let status = 'Belum';
+  if (postTests.length > 0) {
+    status = bestPost && Number(bestPost.NilaiAkhir) >= Number(allConfig.nilaiMinLulus || 70) ? 'Lulus' : 'Remedial';
+  } else if (preTests.length > 0) {
+    status = 'NeedPost';
+  }
+
+  return { preTests, postTests, remedials, bestPost, lastPre, lastPost, status };
+}
+
 function filterTes() {
-  const q  = document.getElementById('srchTes').value.toLowerCase();
-  const j  = document.getElementById('flJenis').value;
-  const tp = document.getElementById('flTipe').value;
+  const srchEl = document.getElementById('srchTes');
+  const jenisEl = document.getElementById('flJenis');
+  const tipeEl = document.getElementById('flTipe');
+  if (!srchEl || !jenisEl || !tipeEl) return;
+
+  const q  = srchEl.value.toLowerCase();
+  const j  = jenisEl.value;
+  const tp = tipeEl.value;
   renderTes(allTes.filter(t =>
     (!q || (t.PesertaID + t.NamaSurah).toLowerCase().includes(q)) &&
     (!j  || t.JenisTes === j) &&
@@ -366,24 +392,20 @@ function renderTes(data) {
 
     // Check if showing "Lihat Rapot" or "Remedial" button
     const participantTests = allTes.filter(x => String(x.PesertaID) === String(id) && x.TipePeserta === tipe);
-    const hasPostOrRemedial = participantTests.some(x => x.JenisTes === 'Post Test' || x.JenisTes === 'Remedial');
-    
-    // Sort overall tests to find the absolute latest test status
-    const latestTestOverall = [...participantTests].sort((a,b) => {
-      const dateDiff = new Date(b.Tanggal) - new Date(a.Tanggal);
-      if (dateDiff !== 0) return dateDiff;
-      if (a.JenisTes === 'Pre Test' && b.JenisTes === 'Post Test') return 1;
-      if (a.JenisTes === 'Post Test' && b.JenisTes === 'Pre Test') return -1;
-      return 0;
-    })[0];
-    const isLulus = latestTestOverall && Number(latestTestOverall.NilaiAkhir) >= (allConfig.nilaiMinLulus || 71);
+    const minLulus = Number(allConfig.nilaiMinLulus || 70);
+    const { preTests, postTests, bestPost, status, lastPre } = getParticipantTestStatus(participantTests);
+    const isLulus = status === 'Lulus';
+    const needsPostTest = status === 'NeedPost';
+    const needsRemedial = status === 'Remedial';
     
     let actionBtnHtml = `<button class="btn btn-outline btn-sm" style="display:inline-flex;align-items:center;gap:4px;" data-progress-id="${id}" data-progress-tipe="${tipe}" title="Lihat Progres"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg> Lihat Progres</button>`;
-    if (tipe === 'Santri' && hasPostOrRemedial) {
-      if (isLulus) {
+    if (tipe === 'Santri') {
+      if (needsPostTest && lastPre) {
+        actionBtnHtml += ` <button class="btn btn-warning btn-sm" style="display:inline-flex;align-items:center;gap:4px;" data-lanjut-pre="${lastPre.ID}" title="Lanjut ke Post Test"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;"><path d="M12 19V5"/><path d="M5 12h14"/></svg> Post Test</button>`;
+      } else if (isLulus) {
         actionBtnHtml += ` <button class="btn btn-primary btn-sm" style="display:inline-flex;align-items:center;gap:4px;" data-rapot="${id}" title="Lihat Rapot"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg> Lihat Rapot</button>`;
-      } else {
-        actionBtnHtml += ` <button class="btn btn-sm" style="background-color: #ef4444 !important; border-color: #ef4444 !important; color: white !important; display:inline-flex; align-items:center; gap:4px; font-weight:600;" data-input-remedial-id="${id}" data-input-remedial-tipe="${tipe}" title="Input Remedial"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg> Remedial</button>`;
+      } else if (needsRemedial) {
+        actionBtnHtml += ` <button class="btn btn-sm" style="background-color: #ef4444 !important; border-color: #ef4444 !important; color: white !important; display:inline-flex;align-items:center;gap:4px;font-weight:600;" data-input-remedial-id="${id}" data-input-remedial-tipe="${tipe}" title="Input Remedial"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg> Remedial</button>`;
       }
     }
 
@@ -421,6 +443,9 @@ function renderTes(data) {
   
   document.querySelectorAll('[data-progress-id]').forEach(b => {
     b.onclick = () => showProgress(b.dataset.progressId, b.dataset.progressTipe);
+  });
+  document.querySelectorAll('[data-lanjut-pre]').forEach(b => {
+    b.onclick = () => lanjutPostTest(b.dataset.lanjutPre);
   });
   document.querySelectorAll('[data-rapot]').forEach(b => b.onclick = () => openRapot(b.dataset.rapot));
   document.querySelectorAll('[data-input-remedial-id]').forEach(b => {
@@ -534,11 +559,7 @@ function showProgress(pesertaId, tipe) {
 function lanjutPostTest(id) {
   const t = allTes.find(x => x.ID === id);
   if (!t) return;
-  openAddTes(); // Buka mode tambah baru
-  document.querySelector('#modalTes h3').textContent = 'Lanjut Post Test';
-  
-  document.getElementById('tTipe').value = t.TipePeserta;
-  ssPesertaTes.setOptions(buildPesertaOpts(t.TipePeserta));
+  openAddTes(null, 'Post Test', true);
   ssPesertaTes.setValue(t.PesertaID);
   ssPengujiTes.setValue(t.IDPenguji);
   document.getElementById('tJenis').value = 'Post Test'; // Force post test
@@ -559,8 +580,7 @@ function openInputRemedial(pesertaId, tipe) {
                       .sort((a,b) => new Date(b.Tanggal) - new Date(a.Tanggal));
   const lastT = tests[0];
   
-  openAddTes(); // Buka mode tambah baru
-  document.querySelector('#modalTes h3').textContent = 'Input Remedial';
+  openAddTes(null, 'Remedial', true);
   
   document.getElementById('tTipe').value = tipe;
   ssPesertaTes.setOptions(buildPesertaOpts(tipe));
@@ -604,7 +624,7 @@ function printRekapRemedial() {
       details = `<strong>${r.lastTest.NamaSurah || '-'}</strong> (${r.lastTest.JenisTes}${ayatStr})`;
     }
     
-    const statusText = r.statusRekap === 'Lulus' ? 'Tuntas (Lulus)' : (r.statusRekap === 'Remedial' ? 'Perlu Pembinaan (Remedial)' : 'Belum Ujian');
+    const statusText = r.statusRekap === 'Lulus' ? 'Tuntas (Lulus)' : (r.statusRekap === 'Remedial' ? 'Perlu Pembinaan (Remedial)' : (r.lastTest && r.lastTest.JenisTes === 'Pre Test' ? 'Belum Post Test' : 'Belum Ujian'));
     const badgeCls = r.statusRekap === 'Lulus' ? 'badge-sb' : (r.statusRekap === 'Remedial' ? 'badge-pb' : 'badge-belum');
     
     return `
@@ -800,9 +820,14 @@ function printRekapRemedial() {
 
 // ── Rekap Remedial ────────────────────────────────────────────
 function filterRekap() {
-  const q    = document.getElementById('srchRekap').value.toLowerCase();
-  const tipe = document.getElementById('flTipeRekap').value;
-  const st   = document.getElementById('flStatusRekap').value;
+  const srchEl = document.getElementById('srchRekap');
+  const tipeEl = document.getElementById('flTipeRekap');
+  const statusEl = document.getElementById('flStatusRekap');
+  if (!srchEl || !tipeEl || !statusEl) return;
+
+  const q    = srchEl.value.toLowerCase();
+  const tipe = tipeEl.value;
+  const st   = statusEl.value;
   const minLulus = allConfig.nilaiMinLulus || 70;
 
   const people = tipe === 'Santri' ? allSantri : allGuru;
@@ -816,18 +841,25 @@ function filterRekap() {
     if (q && !`${id} ${nama}`.toLowerCase().includes(q)) return;
 
     // Cari tes terakhir orang ini
-    const tests = allTes.filter(t => t.PesertaID === id).sort((a,b) => new Date(a.Tanggal) - new Date(b.Tanggal));
+    const tests = allTes.filter(t => String(t.PesertaID) === String(id)).sort((a,b) => new Date(a.Tanggal) - new Date(b.Tanggal));
+    const preTests = tests.filter(t => t.JenisTes === 'Pre Test');
+    const postTests = tests.filter(t => t.JenisTes === 'Post Test');
+    const bestPost = getBestTestRecord(postTests);
     const lastTest = tests.length > 0 ? tests[tests.length-1] : null;
 
     let statusRekap = 'Belum';
     let k = null;
-    if (lastTest) {
-      if (Number(lastTest.NilaiAkhir) >= minLulus) {
+    if (postTests.length > 0) {
+      if (bestPost && Number(bestPost.NilaiAkhir) >= minLulus) {
         statusRekap = 'Lulus'; countLulus++;
+        k = getNilaiKategori(bestPost.NilaiAkhir, allConfig.rentangNilai);
       } else {
         statusRekap = 'Remedial'; countRemedial++;
+        k = getNilaiKategori(bestPost ? bestPost.NilaiAkhir : lastTest?.NilaiAkhir || 0, allConfig.rentangNilai);
       }
-      k = getNilaiKategori(lastTest.NilaiAkhir, allConfig.rentangNilai);
+    } else if (preTests.length > 0) {
+      statusRekap = 'Belum'; countBelum++;
+      k = getNilaiKategori(preTests[preTests.length - 1].NilaiAkhir, allConfig.rentangNilai);
     } else {
       countBelum++;
     }
@@ -863,6 +895,8 @@ function filterRekap() {
     let actionBtn = '-';
     if (r.statusRekap === 'Remedial') {
       actionBtn = `<button class="btn btn-sm" style="background-color: #ef4444 !important; border-color: #ef4444 !important; color: white !important; display:inline-flex; align-items:center; gap:4px; font-weight:600;" data-input-remedial-id="${r.id}" data-input-remedial-tipe="${tipe}" title="Input Remedial"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg> Remedial</button>`;
+    } else if (r.statusRekap === 'Belum' && r.lastTest && r.lastTest.JenisTes === 'Pre Test') {
+      actionBtn = `<button class="btn btn-warning btn-sm" style="display:inline-flex;align-items:center;gap:4px;" data-lanjut-pre="${r.lastTest.ID}" title="Lanjut ke Post Test"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;"><path d="M12 19V5"/><path d="M5 12h14"/></svg> Post Test</button>`;
     }
     
     let jenisBadge = '-';
@@ -888,6 +922,9 @@ function filterRekap() {
 
   document.getElementById('rekapBody').querySelectorAll('[data-input-remedial-id]').forEach(b => {
     b.onclick = () => openInputRemedial(b.dataset.inputRemedialId, b.dataset.inputRemedialTipe);
+  });
+  document.getElementById('rekapBody').querySelectorAll('[data-lanjut-pre]').forEach(b => {
+    b.onclick = () => lanjutPostTest(b.dataset.lanjutPre);
   });
 }
 
@@ -990,9 +1027,9 @@ function calculateNilaiAkhir() {
 
 let editTesId = null;
 
-function openAddTes(editData = null) {
+function openAddTes(editData = null, forceJenis = null, lockJenis = false) {
   editTesId = editData && editData.ID ? editData.ID : null;
-  document.querySelector('#modalTes h3').textContent = editTesId ? 'Edit Tes & Evaluasi' : 'Input Tes & Evaluasi';
+  document.querySelector('#modalTes h3').textContent = editTesId ? 'Edit Tes & Evaluasi' : (forceJenis === 'Post Test' ? 'Lanjut Post Test' : (forceJenis === 'Remedial' ? 'Input Remedial' : 'Input Pre Test'));
   document.getElementById('tesAlert').innerHTML = '';
   hideAyat();
   initSearchableSelects();
@@ -1017,7 +1054,9 @@ function openAddTes(editData = null) {
   } else {
     document.getElementById('tTanggal').value = new Date().toISOString().slice(0, 10);
     document.getElementById('tCatatan').value = '';
+    document.getElementById('tJenis').value = forceJenis || 'Pre Test';
   }
+  document.getElementById('tJenis').disabled = lockJenis;
 
   // Render Rentang Nilai Info
   const rentangHtml = (allConfig.rentangNilai || []).map(r => 
@@ -1035,14 +1074,8 @@ function openAddTes(editData = null) {
 
   // Tentukan mode berdasarkan data jika edit
   const inds = allConfig.indikatorChecklist || [];
-  if (editData) {
-    // Kalau ada nilai <= 20 dan tidak ada yang > 50, mungkin itu mode kesalahan
-    const vals = inds.map((_, i) => Number(editData[`Ind${i+1}`]||0));
-    const isKesalahan = vals.some(v => v > 0 && v <= 20) && !vals.some(v => v > 50);
-    document.getElementById('tModePenilaian').value = isKesalahan ? 'kesalahan' : 'nilai';
-  } else {
-    document.getElementById('tModePenilaian').value = 'kesalahan';
-  }
+  // Selalu gunakan mode kesalahan
+  document.getElementById('tModePenilaian').value = 'kesalahan';
 
   renderIndikatorInputs(editData);
   calculateNilaiAkhir(); // reset / recalc
@@ -1054,6 +1087,8 @@ async function saveTes() {
   const peserta = ssPesertaTes?.getValue();
   const penguji = ssPengujiTes?.getValue();
   const surah   = ssSurahTes?.getValue();
+  const jenis   = document.getElementById('tJenis').value;
+  const tipe    = document.getElementById('tTipe').value;
   
   const inds = allConfig.indikatorChecklist || [];
   let hasMissingNilai = false;
@@ -1069,6 +1104,22 @@ async function saveTes() {
     return;
   }
 
+  if (jenis === 'Post Test') {
+    const hasPre = allTes.some(t => String(t.PesertaID) === String(peserta) && t.TipePeserta === tipe && t.JenisTes === 'Pre Test');
+    if (!hasPre) {
+      document.getElementById('tesAlert').innerHTML = '<div class="alert alert-error">Post Test hanya bisa disimpan setelah Pre Test ada untuk peserta ini.</div>';
+      return;
+    }
+  }
+
+  if (jenis === 'Remedial') {
+    const hasPost = allTes.some(t => String(t.PesertaID) === String(peserta) && t.TipePeserta === tipe && t.JenisTes === 'Post Test');
+    if (!hasPost) {
+      document.getElementById('tesAlert').innerHTML = '<div class="alert alert-error">Remedial hanya bisa disimpan setelah Post Test ada untuk peserta ini.</div>';
+      return;
+    }
+  }
+
   calculateNilaiAkhir(); // ensure latest avg
   const nilaiAkhir = Number(document.getElementById('tNilaiAkhir').textContent);
 
@@ -1077,7 +1128,10 @@ async function saveTes() {
   const ayatSampai = document.getElementById('tAyatSampai').value;
   const halaman    = surah ? (ayatDari && ayatSampai ? `${ayatDari}-${ayatSampai}` : 'Semua') : '';
 
+  const tSesiID = document.getElementById('tSesiID')?.value || '';
+
   const data = {
+    SesiID     : tSesiID,
     TipePeserta: document.getElementById('tTipe').value,
     PesertaID  : peserta,
     IDPenguji  : penguji,

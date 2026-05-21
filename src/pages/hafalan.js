@@ -1,8 +1,8 @@
-import { getHafalan,addHafalan,updateHafalan,deleteHafalan,getSantri,getGuru,getSurahList } from '../api.js';
+import { getHafalan,addHafalan,updateHafalan,deleteHafalan,getSantri,getGuru,getSurahList,getSesiUjian } from '../api.js';
 import { fmtDate, showToast } from '../utils.js';
 import { SearchableSelect } from '../components/searchable-select.js';
 
-let allHafalan=[],allSantri=[],allGuru=[],allSurah=[],editingId=null;
+let allHafalan=[],allSantri=[],allGuru=[],allSurah=[],allSesi=[],editingId=null;
 let ssSantri, ssPenguji, ssSurah;
 
 export async function renderHafalan(container) {
@@ -54,6 +54,7 @@ export async function renderHafalan(container) {
               <input type="checkbox" id="hfBypassWarning"> Izinkan menambah target baru walau masih ada yang Proses
             </label>
           </div>
+          <input type="hidden" id="hfSesiID" value="">
           <div class="form-grid">
             <div class="form-group full">
               <label>Santri *</label>
@@ -144,16 +145,20 @@ export async function renderHafalan(container) {
 
 async function loadAll() {
   const safeParseArr = r => Array.isArray(r) ? r : (typeof r === 'string' ? JSON.parse(r) : []);
-  [allSantri, allGuru, allSurah, allHafalan] = await Promise.all([
+  [allSantri, allGuru, allSurah, allHafalan, allSesi] = await Promise.all([
     getSantri().then(safeParseArr),
     getGuru().then(safeParseArr),
     getSurahList().then(safeParseArr),
-    getHafalan().then(safeParseArr)
+    getHafalan().then(safeParseArr),
+    getSesiUjian().then(safeParseArr)
   ]);
   populateFilters();
   renderSummary();
   applyFilter();
+
 }
+
+
 
 function populateFilters() {
   document.getElementById('flSantri').innerHTML =
@@ -393,9 +398,10 @@ function openAdd() {
   document.getElementById('hfSampai').value  = '';
   document.getElementById('hfStatus').value  = 'Selesai';
   document.getElementById('hfTanggal').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('hfSesiID').value  = '';
   document.getElementById('hfAlert').innerHTML = '';
   document.getElementById('surahInfo').style.display = 'none';
-  initSearchableSelects();
+  initSearchableSelects(); // resets options to default
   document.getElementById('modalHafalan').classList.add('show');
 }
 
@@ -413,6 +419,7 @@ async function saveHafalan() {
   }
   const surah = allSurah.find(s => String(s.no) === String(surahNo));
   const data  = {
+    SesiID      : document.getElementById('hfSesiID').value,
     STambuk     : santri,
     IDPenguji   : penguji,
     NoSurah     : surahNo,
