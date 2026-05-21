@@ -1,11 +1,12 @@
 // =============================================================================
-// MARKAZ QUR'AN — GOOGLE APPS SCRIPT API
+// MARKAZ QUR'AN — GOOGLE APPS SCRIPT API (Enhanced with Validation & Audit)
 // Vercel Frontend → fetch(GAS_URL, {method:'POST', body:JSON.stringify({action,data})})
+// Version 2.0: Smart validation, audit logging, auto-calculations
 // =============================================================================
 const SHEET = {
   SANTRI:'MasterSantri', GURU:'MasterGuru', TES_BACAAN:'TesBacaan',
   CHECKLIST:'ChecklistBacaan', HAFALAN:'Hafalan', RAPOT:'Rapot',
-  CONFIG:'Config', SESI_UJIAN:'SesiUjian'
+  CONFIG:'Config', SESI_UJIAN:'SesiUjian', AUDIT:'AuditLog'
 };
 
 function doGet(e) {
@@ -27,7 +28,8 @@ function doPost(e) {
       getRapot, saveRapot, deleteRapot,
       getSesiUjian, addSesiUjian, updateSesiUjian, deleteSesiUjian,
       getDashboardStats, getSurahList, setupSpreadsheet, setupSesiUjianSheet,
-      getConfig, saveConfig
+      getConfig, saveConfig,
+      getDataHealthStatus, validateData
     };
     if (!map[action]) { out.setContent(JSON.stringify({ok:false,msg:'Unknown action: '+action})); return out; }
     const result = data !== undefined ? map[action](data) : map[action]();
@@ -53,7 +55,8 @@ function initHeaders(sh, name) {
     [SHEET.HAFALAN]    :['ID','STambuk','IDPenguji','NoSurah','NamaSurah','Juz','AyatDari','AyatSampai','Status','TanggalSetor','Catatan','Timestamp'],
     [SHEET.RAPOT]      :['ID','STambuk','NamaSantri','Periode','NilaiBacaan','NilaiTajwid','NilaiHafalan','Kehadiran','Catatan','Rekomendasi','Tanggal','Timestamp'],
     [SHEET.CONFIG]     :['Key','Value'],
-    [SHEET.SESI_UJIAN] :['SesiID','NamaSesi','TipeSesi','Tanggal','PenanggungJawab','Peserta','TargetUjian','Status','Timestamp']
+    [SHEET.SESI_UJIAN] :['SesiID','NamaSesi','TipeSesi','Tanggal','PenanggungJawab','Peserta','TargetUjian','Status','Timestamp'],
+    [SHEET.AUDIT]      :['Timestamp','Action','EntityType','EntityId','User','OldData','NewData']
   };
   if (h[name]) sh.appendRow(h[name]);
 }
@@ -65,6 +68,114 @@ function sheetToObjects(sh) {
 }
 function genId(p) { return p+new Date().getTime(); }
 function setupSpreadsheet() { Object.values(SHEET).forEach(n=>getSheet(n)); return JSON.stringify({ok:true}); }
+
+// ── VALIDATION LAYER (Server-side data integrity) ────────────
+const VALIDATORS = {
+  santri: (d) => {
+    const errors = [];
+    if (!d.STambuk || String(d.STambuk).trim() === '') errors.push('Stambuk santri harus diisi');
+    if (!d.Nama || String(d.Nama).trim() === '') errors.push('Nama santri harus diisi');
+    if (d.Status && !['Aktif', 'Non-Aktif', 'Lulus'].includes(d.Status)) errors.push('Status tidak valid');
+    return { valid: errors.length === 0, errors };
+  },
+  guru: (d) => {
+    const errors = [];
+    if (!d.Nama || String(d.Nama).trim() === '') errors.push('Nama guru harus diisi');
+    if (d.Status && !['Aktif', 'Non-Aktif'].includes(d.Status)) errors.push('Status guru tidak valid');
+    return { valid: errors.length === 0, errors };
+  },
+  tesBacaan: (d) => {
+    const errors = [];
+    if (!d.PesertaID) errors.push('ID Peserta harus diisi');
+    if (!d.NamaSurah) errors.push('Nama surah harus diisi');
+    if (d.JenisTes && !['Pre Test', 'Post Test'].includes(d.JenisTes)) errors.push('Jenis tes tidak valid');
+    // Calculate score if indicators provided
+    if (d.Indikator || d.Ind1) {
+      const ind = d.Indikator || {};
+      let totalErrors = 0;
+      for (let i = 1; i <= 10; i++) {
+        const val = d[`Ind${i}`] !== undefined ? d[`Ind${i}`] : (ind[`Ind${i}`] || 0);
+        totalErrors += Number(val) || 0;
+      }
+      if (totalErrors > 1000) errors.push('Total kesalahan tidak masuk akal (> 1000)');
+      d.NilaiAkhir = Math.max(0, 100 - (totalErrors * 2));
+    }
+    return { valid: errors.length === 0, errors, data: d };
+  },
+  hafalan: (d) => {
+    const errors = [];
+    if (!d.STambuk) errors.push('Stambuk santri harus diisi');
+    if (!d.NamaSurah) errors.push('Nama surah harus diisi');
+    if (d.Status && !['Selesai', 'Proses'].includes(d.Status)) errors.push('Status hafalan tidak valid');
+    return { valid: errors.length === 0, errors };
+  },
+  sesiUjian: (d) => {
+    const errors = [];
+    if (!d.NamaSesi) errors.push('Nama sesi harus diisi');
+    if (!d.Tanggal) errors.push('Tanggal sesi harus diisi');
+    if (!d.PenanggungJawab) errors.push('Penanggung jawab harus dipilih');
+    if (d.TipeSesi && !['Bacaan', 'Hafalan'].includes(d.TipeSesi)) errors.push('Tipe sesi tidak valid');
+    if (!d.Peserta || (Array.isArray(d.Peserta) ? d.Peserta.length === 0 : String(d.Peserta).trim() === '')) {
+      errors.push('Minimal 1 peserta harus dipilih');
+    }
+    return { valid: errors.length === 0, errors };
+  }
+};
+
+function validateData(type, data) {
+  const validator = VALIDATORS[type];
+  if (!validator) return { valid: true };
+  return validator(data);
+}
+
+// ── AUDIT LOGGING (Track all changes) ────────────────────────
+function logAudit(action, entityType, entityId, oldData, newData) {
+  try {
+    const user = Session.getEffectiveUser().getEmail();
+    const sh = getSheet(SHEET.AUDIT);
+    sh.appendRow([
+      new Date().toISOString(),
+      action,
+      entityType,
+      entityId,
+      user,
+      oldData ? JSON.stringify(oldData).substring(0, 500) : '',
+      newData ? JSON.stringify(newData).substring(0, 500) : ''
+    ]);
+  } catch(e) {
+    Logger.log('Audit log error: ' + e.message);
+  }
+}
+
+// ── DATA CONSISTENCY CHECKS ──────────────────────────────────
+function getDataHealthStatus() {
+  try {
+    const issues = [];
+    const santri = sheetToObjects(getSheet(SHEET.SANTRI));
+    const tes = sheetToObjects(getSheet(SHEET.TES_BACAAN));
+    const hafalan = sheetToObjects(getSheet(SHEET.HAFALAN));
+
+    const santriIds = new Set(santri.map(s => String(s.STambuk)));
+
+    // Check: Peserta tes ada di master santri
+    tes.forEach(t => {
+      if (!santriIds.has(String(t.PesertaID))) {
+        issues.push({ type: 'orphan_tes', peserta: t.PesertaID, tesId: t.ID });
+      }
+    });
+
+    // Check: Peserta hafalan ada di master santri
+    hafalan.forEach(h => {
+      if (!santriIds.has(String(h.STambuk))) {
+        issues.push({ type: 'orphan_hafalan', peserta: h.STambuk, hfId: h.ID });
+      }
+    });
+
+    return { ok: true, issues, totalIssues: issues.length };
+  } catch(e) {
+    return { ok: false, msg: e.message };
+  }
+}
 
 // ── Surah List ────────────────────────────────────────────────
 function getSurahList() {
@@ -133,16 +244,47 @@ function getSurahList() {
 // ── Santri ────────────────────────────────────────────────────
 function getSantri() { return JSON.stringify(sheetToObjects(getSheet(SHEET.SANTRI))); }
 function addSantri(d) {
-  try { const sh=getSheet(SHEET.SANTRI); sh.appendRow([d.STambuk,d.Nama,d.Kelas,d.Daerah,d.Rayon,d.Kamar||'',d.TanggalMasuk||'',d.Status||'Aktif']); return JSON.stringify({ok:true}); }
-  catch(e){return JSON.stringify({ok:false,msg:e.message});}
+  try {
+    // Validate
+    const val = validateData('santri', d);
+    if (!val.valid) return JSON.stringify({ ok: false, msg: 'Validasi gagal', errors: val.errors });
+
+    const sh = getSheet(SHEET.SANTRI);
+    sh.appendRow([d.STambuk, d.Nama, d.Kelas, d.Daerah, d.Rayon, d.Kamar || '', d.TanggalMasuk || '', d.Status || 'Aktif']);
+    logAudit('ADD', 'Santri', d.STambuk, null, d);
+    return JSON.stringify({ ok: true });
+  } catch(e) { return JSON.stringify({ ok: false, msg: e.message }); }
 }
 function updateSantri(d) {
-  try { const sh=getSheet(SHEET.SANTRI),vals=sh.getDataRange().getValues(); for(let i=1;i<vals.length;i++){if(String(vals[i][0])===String(d.STambuk)){sh.getRange(i+1,1,1,8).setValues([[d.STambuk,d.Nama,d.Kelas,d.Daerah,d.Rayon,d.Kamar||'',d.TanggalMasuk,d.Status]]);return JSON.stringify({ok:true});}} return JSON.stringify({ok:false,msg:'Tidak ditemukan'}); }
-  catch(e){return JSON.stringify({ok:false,msg:e.message});}
+  try {
+    // Validate
+    const val = validateData('santri', d);
+    if (!val.valid) return JSON.stringify({ ok: false, msg: 'Validasi gagal', errors: val.errors });
+
+    const sh = getSheet(SHEET.SANTRI), vals = sh.getDataRange().getValues();
+    for (let i = 1; i < vals.length; i++) {
+      if (String(vals[i][0]) === String(d.STambuk)) {
+        const old = { STambuk: vals[i][0], Nama: vals[i][1], Kelas: vals[i][2] };
+        sh.getRange(i+1, 1, 1, 8).setValues([[d.STambuk, d.Nama, d.Kelas, d.Daerah, d.Rayon, d.Kamar || '', d.TanggalMasuk, d.Status]]);
+        logAudit('UPDATE', 'Santri', d.STambuk, old, d);
+        return JSON.stringify({ ok: true });
+      }
+    }
+    return JSON.stringify({ ok: false, msg: 'Tidak ditemukan' });
+  } catch(e) { return JSON.stringify({ ok: false, msg: e.message }); }
 }
 function deleteSantri(stambuk) {
-  try { const sh=getSheet(SHEET.SANTRI),vals=sh.getDataRange().getValues(); for(let i=1;i<vals.length;i++){if(String(vals[i][0])===String(stambuk)){sh.deleteRow(i+1);return JSON.stringify({ok:true});}} return JSON.stringify({ok:false,msg:'Tidak ditemukan'}); }
-  catch(e){return JSON.stringify({ok:false,msg:e.message});}
+  try {
+    const sh = getSheet(SHEET.SANTRI), vals = sh.getDataRange().getValues();
+    for (let i = 1; i < vals.length; i++) {
+      if (String(vals[i][0]) === String(stambuk)) {
+        logAudit('DELETE', 'Santri', stambuk, { STambuk: vals[i][0], Nama: vals[i][1] }, null);
+        sh.deleteRow(i+1);
+        return JSON.stringify({ ok: true });
+      }
+    }
+    return JSON.stringify({ ok: false, msg: 'Tidak ditemukan' });
+  } catch(e) { return JSON.stringify({ ok: false, msg: e.message }); }
 }
 
 // ── Guru ──────────────────────────────────────────────────────
@@ -163,42 +305,62 @@ function deleteGuru(id) {
 // ── Tes Bacaan ────────────────────────────────────────────────
 function getTesBacaan() { return JSON.stringify(sheetToObjects(getSheet(SHEET.TES_BACAAN))); }
 function addTesBacaan(d) {
-  const sh = getSheet(SHEET.TES_BACAAN);
-  sh.appendRow([
-    genId('TS-'), d.TipePeserta, d.PesertaID, d.IDPenguji, d.Tanggal,
-    d.NoSurah, d.NamaSurah, d.Halaman, d.JenisTes,
-    d.Ind1||'', d.Ind2||'', d.Ind3||'', d.Ind4||'', d.Ind5||'',
-    d.Ind6||'', d.Ind7||'', d.Ind8||'', d.Ind9||'', d.Ind10||'',
-    d.NilaiAkhir, d.Catatan, new Date()
-  ]);
-  return {ok:true};
+  try {
+    // Validate and auto-calculate score
+    const val = validateData('tesBacaan', d);
+    if (!val.valid) return JSON.stringify({ ok: false, msg: 'Validasi gagal', errors: val.errors });
+
+    const sh = getSheet(SHEET.TES_BACAAN);
+    const finalData = val.data || d;
+
+    sh.appendRow([
+      genId('TS-'), finalData.TipePeserta, finalData.PesertaID, finalData.PengujiID || finalData.IDPenguji, finalData.Tanggal,
+      finalData.NoSurah, finalData.NamaSurah || finalData.SurahTarget, finalData.Halaman, finalData.JenisTes,
+      finalData.Ind1 || '', finalData.Ind2 || '', finalData.Ind3 || '', finalData.Ind4 || '', finalData.Ind5 || '',
+      finalData.Ind6 || '', finalData.Ind7 || '', finalData.Ind8 || '', finalData.Ind9 || '', finalData.Ind10 || '',
+      finalData.NilaiAkhir, finalData.Catatan, new Date()
+    ]);
+    logAudit('ADD', 'TesBacaan', finalData.PesertaID, null, finalData);
+    return JSON.stringify({ ok: true, nilaiAkhir: finalData.NilaiAkhir });
+  } catch(e) { return JSON.stringify({ ok: false, msg: e.message }); }
 }
 function deleteTesBacaan(id) {
   try {
-    const sh=getSheet(SHEET.TES_BACAAN), vals=sh.getDataRange().getValues();
-    for(let i=1;i<vals.length;i++){
-      if(String(vals[i][0])===String(id)){sh.deleteRow(i+1);return JSON.stringify({ok:true});}
+    const sh = getSheet(SHEET.TES_BACAAN), vals = sh.getDataRange().getValues();
+    for (let i = 1; i < vals.length; i++) {
+      if (String(vals[i][0]) === String(id)) {
+        logAudit('DELETE', 'TesBacaan', id, { ID: vals[i][0], PesertaID: vals[i][2] }, null);
+        sh.deleteRow(i+1);
+        return JSON.stringify({ ok: true });
+      }
     }
-    return JSON.stringify({ok:false,msg:'Tidak ditemukan'});
-  } catch(e){return JSON.stringify({ok:false,msg:e.message});}
+    return JSON.stringify({ ok: false, msg: 'Tidak ditemukan' });
+  } catch(e) { return JSON.stringify({ ok: false, msg: e.message }); }
 }
 function updateTesBacaan(d) {
   try {
-    const sh=getSheet(SHEET.TES_BACAAN), vals=sh.getDataRange().getValues();
-    for(let i=1; i<vals.length; i++) {
-      if(String(vals[i][0]) === String(d.ID)) {
+    // Validate and auto-calculate
+    const val = validateData('tesBacaan', d);
+    if (!val.valid) return JSON.stringify({ ok: false, msg: 'Validasi gagal', errors: val.errors });
+
+    const sh = getSheet(SHEET.TES_BACAAN), vals = sh.getDataRange().getValues();
+    const finalData = val.data || d;
+
+    for (let i = 1; i < vals.length; i++) {
+      if (String(vals[i][0]) === String(d.ID)) {
         sh.getRange(i+1, 2, 1, 20).setValues([[
-          d.TipePeserta, d.PesertaID, d.IDPenguji, d.Tanggal,
-          d.NoSurah, d.NamaSurah, d.Halaman, d.JenisTes,
-          d.Ind1||'', d.Ind2||'', d.Ind3||'', d.Ind4||'', d.Ind5||'',
-          d.Ind6||'', d.Ind7||'', d.Ind8||'', d.Ind9||'', d.Ind10||'',
-          d.NilaiAkhir, d.Catatan
+          finalData.TipePeserta, finalData.PesertaID, finalData.IDPenguji || finalData.PengujiID, finalData.Tanggal,
+          finalData.NoSurah, finalData.NamaSurah, finalData.Halaman, finalData.JenisTes,
+          finalData.Ind1 || '', finalData.Ind2 || '', finalData.Ind3 || '', finalData.Ind4 || '', finalData.Ind5 || '',
+          finalData.Ind6 || '', finalData.Ind7 || '', finalData.Ind8 || '', finalData.Ind9 || '', finalData.Ind10 || '',
+          finalData.NilaiAkhir, finalData.Catatan
         ]]);
-        return {ok:true};
+        logAudit('UPDATE', 'TesBacaan', d.ID, null, finalData);
+        return JSON.stringify({ ok: true, nilaiAkhir: finalData.NilaiAkhir });
       }
     }
-    return {ok:false, msg:'Tidak ditemukan'};
-  } catch(e) { return {ok:false, msg:e.message}; }
+    return JSON.stringify({ ok: false, msg: 'Tidak ditemukan' });
+  } catch(e) { return JSON.stringify({ ok: false, msg: e.message }); }
 }
 
 // ── Hafalan ───────────────────────────────────────────────────
