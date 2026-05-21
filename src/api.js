@@ -1,5 +1,5 @@
 // GAS API URL — ganti dengan URL deploy GAS Anda
-export const GAS_URL = 'https://script.google.com/macros/s/AKfycbxYLUiOxaImSz73cID3M1L-ScSB7gNTnScY7BTAWM13f25jwQvKFK6lMtIRScloSdU/exec';
+export const GAS_URL = 'https://script.google.com/macros/s/AKfycbwlMF-nqfEZ7J4sg0ZFIUnVIfQuT1Ivw8IroK6aRv6GaoTTK1eg-r42eO5TiVlJkqM7/exec';
 
 /**
  * Panggil GAS API

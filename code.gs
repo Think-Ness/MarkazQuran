@@ -29,7 +29,8 @@ function doPost(e) {
       getSesiUjian, addSesiUjian, updateSesiUjian, deleteSesiUjian,
       getDashboardStats, getSurahList, setupSpreadsheet, setupSesiUjianSheet,
       getConfig, saveConfig,
-      getDataHealthStatus, validateData
+      getDataHealthStatus, validateData,
+      getTestWorkflowStatus
     };
     if (!map[action]) { out.setContent(JSON.stringify({ok:false,msg:'Unknown action: '+action})); return out; }
     const result = data !== undefined ? map[action](data) : map[action]();
@@ -306,23 +307,51 @@ function deleteGuru(id) {
 function getTesBacaan() { return JSON.stringify(sheetToObjects(getSheet(SHEET.TES_BACAAN))); }
 function addTesBacaan(d) {
   try {
-    // Validate and auto-calculate score
+    // Enhanced validation with warning flags
     const val = validateData('tesBacaan', d);
     if (!val.valid) return JSON.stringify({ ok: false, msg: 'Validasi gagal', errors: val.errors });
 
-    const sh = getSheet(SHEET.TES_BACAAN);
-    const finalData = val.data || d;
+    // Map field names for compatibility
+    const finalData = {
+      TipePeserta: d.TipePeserta || 'Santri',
+      PesertaID: d.PesertaID || d.STambuk,
+      IDPenguji: d.IDPenguji || d.PengujiID || d.Penguji || '',  // Support multiple field names
+      Tanggal: d.Tanggal || new Date().toISOString().split('T')[0],
+      NoSurah: d.NoSurah || d.SurahNo || '',
+      NamaSurah: d.NamaSurah || d.SurahTarget || d.Surah || '',  // Support multiple field names
+      Halaman: d.Halaman || d.Halaman || '',
+      JenisTes: d.JenisTes || 'Pre Test',
+      Ind1: d.Ind1 || '', Ind2: d.Ind2 || '', Ind3: d.Ind3 || '', Ind4: d.Ind4 || '', Ind5: d.Ind5 || '',
+      Ind6: d.Ind6 || '', Ind7: d.Ind7 || '', Ind8: d.Ind8 || '', Ind9: d.Ind9 || '', Ind10: d.Ind10 || '',
+      Catatan: d.Catatan || ''
+    };
 
+    // Calculate score from indicators if provided
+    let totalErrors = 0;
+    for (let i = 1; i <= 10; i++) {
+      totalErrors += Number(finalData[`Ind${i}`]) || 0;
+    }
+    finalData.NilaiAkhir = Math.max(0, 100 - (totalErrors * 2));
+
+    const sh = getSheet(SHEET.TES_BACAAN);
     sh.appendRow([
-      genId('TS-'), finalData.TipePeserta, finalData.PesertaID, finalData.PengujiID || finalData.IDPenguji, finalData.Tanggal,
-      finalData.NoSurah, finalData.NamaSurah || finalData.SurahTarget, finalData.Halaman, finalData.JenisTes,
-      finalData.Ind1 || '', finalData.Ind2 || '', finalData.Ind3 || '', finalData.Ind4 || '', finalData.Ind5 || '',
-      finalData.Ind6 || '', finalData.Ind7 || '', finalData.Ind8 || '', finalData.Ind9 || '', finalData.Ind10 || '',
+      genId('TS-'), finalData.TipePeserta, finalData.PesertaID, finalData.IDPenguji, finalData.Tanggal,
+      finalData.NoSurah, finalData.NamaSurah, finalData.Halaman, finalData.JenisTes,
+      finalData.Ind1, finalData.Ind2, finalData.Ind3, finalData.Ind4, finalData.Ind5,
+      finalData.Ind6, finalData.Ind7, finalData.Ind8, finalData.Ind9, finalData.Ind10,
       finalData.NilaiAkhir, finalData.Catatan, new Date()
     ]);
+
     logAudit('ADD', 'TesBacaan', finalData.PesertaID, null, finalData);
-    return JSON.stringify({ ok: true, nilaiAkhir: finalData.NilaiAkhir });
-  } catch(e) { return JSON.stringify({ ok: false, msg: e.message }); }
+    return JSON.stringify({
+      ok: true,
+      nilaiAkhir: finalData.NilaiAkhir,
+      jenisTes: finalData.JenisTes,
+      msg: `✓ ${finalData.JenisTes} disimpan (Nilai: ${finalData.NilaiAkhir})`
+    });
+  } catch(e) {
+    return JSON.stringify({ ok: false, msg: e.message });
+  }
 }
 function deleteTesBacaan(id) {
   try {
@@ -519,6 +548,88 @@ function deleteSesiUjian(id) {
     }
     return JSON.stringify({ok:false,msg:'Sesi tidak ditemukan'});
   } catch(e){return JSON.stringify({ok:false,msg:e.message});}
+}
+
+// ── Test Workflow Status ──────────────────────────────────────
+/**
+ * Get test workflow status for a student
+ * Returns: { status, display, canPreTest, canPostTest, preTestData, postTestData }
+ */
+function getTestWorkflowStatus(pesertaId) {
+  try {
+    const tes = sheetToObjects(getSheet(SHEET.TES_BACAAN));
+    const studentTests = tes.filter(t => String(t.PesertaID || t.STambuk) === String(pesertaId))
+      .sort((a, b) => new Date(b.Tanggal) - new Date(a.Tanggal));
+
+    if (studentTests.length === 0) {
+      return {
+        status: 'belum',
+        display: 'Belum Tes',
+        canPreTest: true,
+        canPostTest: false,
+        preTestData: null,
+        postTestData: null,
+        remedialCount: 0
+      };
+    }
+
+    const preTests = studentTests.filter(t => t.JenisTes === 'Pre Test');
+    const postTests = studentTests.filter(t => t.JenisTes === 'Post Test');
+    const lastPost = postTests[0];
+    const postScore = lastPost ? Number(lastPost.NilaiAkhir || 0) : 0;
+
+    if (preTests.length === 0) {
+      return {
+        status: 'pretest_pending',
+        display: 'Pre Test (Pending)',
+        canPreTest: true,
+        canPostTest: false,
+        preTestData: null,
+        postTestData: null,
+        remedialCount: 0
+      };
+    }
+
+    const preTestData = preTests[0];
+
+    if (postTests.length === 0) {
+      return {
+        status: 'pretest_done',
+        display: 'Pre Test ✓ → Post Test',
+        canPreTest: false,
+        canPostTest: true,
+        preTestData: preTestData,
+        postTestData: null,
+        remedialCount: 0
+      };
+    }
+
+    if (postScore >= 70) {
+      return {
+        status: 'lulus',
+        display: 'Lulus ✓',
+        canPreTest: false,
+        canPostTest: false,
+        preTestData: preTestData,
+        postTestData: lastPost,
+        remedialCount: postTests.length - 1
+      };
+    } else {
+      return {
+        status: 'remedial',
+        display: 'Remedial (Post Test: ' + postScore + ')',
+        canPreTest: false,
+        canPostTest: true,
+        preTestData: preTestData,
+        postTestData: lastPost,
+        remedialCount: postTests.length - 1,
+        needsRemedial: true
+      };
+    }
+  } catch(e) {
+    Logger.log('Error in getTestWorkflowStatus: ' + e.message);
+    return { status: 'error', ok: false, msg: e.message };
+  }
 }
 
 /**

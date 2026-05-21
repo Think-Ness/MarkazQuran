@@ -3,7 +3,7 @@ import { initModalClose, setTopbarDate } from './utils.js';
 import { renderDashboard } from './pages/dashboard.js';
 import { renderSantri }    from './pages/santri.js';
 import { renderGuru }      from './pages/guru.js';
-import { renderTesBacaan } from './pages/tes-bacaan.js';
+import { renderTesBacaan } from './pages/tes-bacaan-improved.js';  // UPDATED: Use improved version
 import { renderHafalan }   from './pages/hafalan.js';
 import { renderRapot }     from './pages/rapot.js';
 import { renderSetup }     from './pages/setup.js';
