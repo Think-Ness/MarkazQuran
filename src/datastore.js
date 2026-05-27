@@ -1,57 +1,62 @@
 /**
  * Unified Data Store - Central state management for Markaz Qur'an
- * Handles caching, change tracking, validation, and data consistency
+ * Handles caching, API sync, change tracking, and data consistency
  */
+
+import * as api from './api.js';
 
 class DataStore {
   constructor() {
     this.cache = {};
     this.validators = {};
     this.listeners = {};
-    this.transactionLog = [];
-    this.undoStack = [];
-    this.redoStack = [];
+    this.isInitialized = false;
   }
 
   /**
    * Register a data validator for a collection
-   * @param {string} key - collection name
-   * @param {Function} validator - validation function(data) => { isValid, errors }
    */
   registerValidator(key, validator) {
     this.validators[key] = validator;
   }
 
   /**
-   * Set collection data with validation
-   * @param {string} key - collection name
-   * @param {Array} data - data array
-   * @param {Boolean} skipValidation - bypass validation if needed
+   * Initialize all data from API at startup
    */
-  set(key, data, skipValidation = false) {
-    // Validate before setting
-    if (!skipValidation && this.validators[key]) {
-      const result = this.validators[key](data);
-      if (!result.isValid) {
-        console.error(`Validation failed for ${key}:`, result.errors);
-        return { ok: false, errors: result.errors };
-      }
+  async initialize() {
+    const parse = d => Array.isArray(d) ? d : (typeof d === 'string' ? JSON.parse(d) : []);
+    try {
+      const [santri, guru, surah, tes, hafalan, sesi, config] = await Promise.all([
+        api.getSantri().then(parse),
+        api.getGuru().then(parse),
+        api.getSurahList().then(parse),
+        api.getTesBacaan().then(parse),
+        api.getHafalan().then(parse),
+        api.getSesiUjian().then(parse),
+        api.getConfig().then(d => typeof d === 'string' ? JSON.parse(d) : (d || {}))
+      ]);
+      
+      this.cache['santri'] = santri;
+      this.cache['guru'] = guru;
+      this.cache['surah'] = surah;
+      this.cache['tesBacaan'] = tes;
+      this.cache['hafalan'] = hafalan;
+      this.cache['sesiUjian'] = sesi;
+      this.cache['config'] = config;
+
+      // Parse configs for Sesi
+      this.cache['sesiUjian'].forEach(s => {
+        try { s._materi  = typeof s.TargetUjian === 'string' ? JSON.parse(s.TargetUjian || '{}') : (s.TargetUjian || {}); } catch(e){ s._materi={}; }
+        try { s._peserta = typeof s.Peserta === 'string'     ? JSON.parse(s.Peserta     || '[]') : (s.Peserta     || []); } catch(e){ s._peserta=[]; }
+      });
+
+      this.isInitialized = true;
+      Object.keys(this.listeners).forEach(key => this._notifyListeners(key));
+      return { ok: true };
+    } catch (e) {
+      console.error("Initialization failed:", e);
+      return { ok: false, msg: e.message };
     }
-
-    // Track undo
-    if (this.cache[key]) {
-      this.undoStack.push({ key, data: structuredClone(this.cache[key]) });
-      this.redoStack = []; // Clear redo when new change
-    }
-
-    // Store data
-    this.cache[key] = Array.isArray(data) ? data : [];
-
-    // Notify listeners
-    this._notifyListeners(key);
-    this.transactionLog.push({ type: 'SET', key, timestamp: Date.now() });
-
-    return { ok: true };
   }
 
   /**
@@ -63,8 +68,6 @@ class DataStore {
 
   /**
    * Get single item by ID
-   * @param {string} key - collection name
-   * @param {string} id - item ID (supports: id, STambuk, SesiID)
    */
   getById(key, id) {
     const arr = this.cache[key] || [];
@@ -78,61 +81,129 @@ class DataStore {
   }
 
   /**
-   * Add item to collection
+   * Add item to collection and sync to API
    */
-  add(key, item) {
-    if (!this.cache[key]) this.cache[key] = [];
+  async add(key, item, skipValidation = false) {
+    if (!skipValidation && this.validators[key]) {
+      const result = this.validators[key](item);
+      if (!result.isValid) return { ok: false, msg: result.errors.join(', ') };
+    }
 
-    // Assign ID if missing
-    if (!item.id && item.STambuk) item.id = item.STambuk;
-    if (!item.id && item.SesiID) item.id = item.SesiID;
+    let apiFunc;
+    if (key === 'santri') apiFunc = api.addSantri;
+    else if (key === 'guru') apiFunc = api.addGuru;
+    else if (key === 'tesBacaan') apiFunc = api.addTesBacaan;
+    else if (key === 'hafalan') apiFunc = api.addHafalan;
+    else if (key === 'sesiUjian') apiFunc = api.addSesiUjian;
+    else return { ok: false, msg: `API add function not mapped for ${key}` };
 
-    this.cache[key].push(item);
-    this._notifyListeners(key);
-    return { ok: true, item };
+    const res = await apiFunc(item);
+    if (res.ok) {
+      if (!this.cache[key]) this.cache[key] = [];
+      
+      if (key === 'sesiUjian') {
+        try { res.data = res.data || item; } catch(e){}
+        if(res.data) {
+           try { res.data._materi  = typeof res.data.TargetUjian === 'string' ? JSON.parse(res.data.TargetUjian || '{}') : (res.data.TargetUjian || {}); } catch(e){ res.data._materi={}; }
+           try { res.data._peserta = typeof res.data.Peserta === 'string'     ? JSON.parse(res.data.Peserta     || '[]') : (res.data.Peserta     || []); } catch(e){ res.data._peserta=[]; }
+        }
+      }
+
+      // Instead of just pushing, if API returns updated object, use it. Otherwise use item.
+      const newItem = res.data ? res.data : item;
+
+      // Assign ID if missing so getById works
+      if (!newItem.id && newItem.STambuk) newItem.id = newItem.STambuk;
+      if (!newItem.id && newItem.SesiID) newItem.id = newItem.SesiID;
+
+      this.cache[key].push(newItem);
+      this._notifyListeners(key);
+      return { ok: true, data: res, item: newItem };
+    }
+    return res;
   }
 
   /**
-   * Update item in collection
+   * Update item in collection and sync to API
    */
-  update(key, id, updates) {
-    const arr = this.cache[key] || [];
-    const item = this.getById(key, id);
+  async update(key, id, updates, skipValidation = false) {
+    let apiFunc;
+    if (key === 'santri') apiFunc = api.updateSantri;
+    else if (key === 'guru') apiFunc = api.updateGuru;
+    else if (key === 'tesBacaan') apiFunc = api.updateTesBacaan;
+    else if (key === 'hafalan') apiFunc = api.updateHafalan;
+    else if (key === 'sesiUjian') apiFunc = api.updateSesiUjian;
+    else return { ok: false, msg: `API update function not mapped for ${key}` };
 
-    if (!item) {
-      return { ok: false, error: `Item ${id} not found in ${key}` };
+    // the payload usually needs the ID.
+    const payload = { ...updates };
+    if (!payload.STambuk && key === 'santri') payload.STambuk = id;
+    if (!payload.SesiID && key === 'sesiUjian') payload.SesiID = id;
+    if (!payload.IDGuru && key === 'guru') payload.IDGuru = id;
+    // For tesBacaan and hafalan it might be row index or specific ID. Assuming ID is sent in payload.
+
+    const res = await apiFunc(payload);
+    if (res.ok) {
+      const arr = this.cache[key] || [];
+      const itemIndex = arr.findIndex(item =>
+        item.id === id || item.STambuk === id || item.SesiID === id || item.ID === id
+      );
+
+      if (itemIndex > -1) {
+        Object.assign(arr[itemIndex], updates);
+        
+        if (key === 'sesiUjian') {
+           try { arr[itemIndex]._materi  = typeof arr[itemIndex].TargetUjian === 'string' ? JSON.parse(arr[itemIndex].TargetUjian || '{}') : (arr[itemIndex].TargetUjian || {}); } catch(e){ arr[itemIndex]._materi={}; }
+           try { arr[itemIndex]._peserta = typeof arr[itemIndex].Peserta === 'string'     ? JSON.parse(arr[itemIndex].Peserta     || '[]') : (arr[itemIndex].Peserta     || []); } catch(e){ arr[itemIndex]._peserta=[]; }
+        }
+
+        this._notifyListeners(key);
+      }
+      return { ok: true, data: res };
     }
-
-    // Track undo
-    this.undoStack.push({ key, id, data: structuredClone(item) });
-    this.redoStack = [];
-
-    // Merge updates
-    Object.assign(item, updates);
-    this._notifyListeners(key);
-    return { ok: true, item };
+    return res;
   }
 
   /**
-   * Delete item from collection
+   * Delete item from collection and sync to API
    */
-  delete(key, id) {
-    const arr = this.cache[key] || [];
-    const idx = arr.findIndex(item =>
-      item.id === id || item.STambuk === id || item.SesiID === id
-    );
+  async remove(key, id) {
+    let apiFunc;
+    if (key === 'santri') apiFunc = api.deleteSantri;
+    else if (key === 'guru') apiFunc = api.deleteGuru;
+    else if (key === 'tesBacaan') apiFunc = api.deleteTesBacaan;
+    else if (key === 'hafalan') apiFunc = api.deleteHafalan;
+    else if (key === 'sesiUjian') apiFunc = api.deleteSesiUjian;
+    else if (key === 'rapot') apiFunc = api.deleteRapot;
+    else return { ok: false, msg: `API delete function not mapped for ${key}` };
 
-    if (idx === -1) {
-      return { ok: false, error: `Item ${id} not found in ${key}` };
+    const res = await apiFunc(id);
+    if (res.ok) {
+      const arr = this.cache[key] || [];
+      const idx = arr.findIndex(item =>
+        item.id === id || item.STambuk === id || item.SesiID === id ||
+        item.ID === id || item.IDGuru === id || String(item.id) === String(id) ||
+        String(item.SesiID) === String(id)
+      );
+      if (idx > -1) {
+        arr.splice(idx, 1);
+        this._notifyListeners(key);
+      }
+      return { ok: true };
     }
+    return res;
+  }
 
-    const deleted = arr[idx];
-    this.undoStack.push({ key, deleted, index: idx });
-    this.redoStack = [];
-
-    arr.splice(idx, 1);
-    this._notifyListeners(key);
-    return { ok: true, deleted };
+  /**
+   * Subscribe to collection changes
+   */
+  subscribe(key, callback) {
+    if (!this.listeners[key]) this.listeners[key] = [];
+    this.listeners[key].push(callback);
+    return () => {
+      const idx = this.listeners[key].indexOf(callback);
+      if (idx > -1) this.listeners[key].splice(idx, 1);
+    };
   }
 
   /**
@@ -143,89 +214,6 @@ class DataStore {
     return arr.filter(predicate);
   }
 
-  /**
-   * Map over collection
-   */
-  map(key, mapper) {
-    const arr = this.cache[key] || [];
-    return arr.map(mapper);
-  }
-
-  /**
-   * Subscribe to collection changes
-   */
-  subscribe(key, callback) {
-    if (!this.listeners[key]) this.listeners[key] = [];
-    this.listeners[key].push(callback);
-
-    // Return unsubscribe function
-    return () => {
-      const idx = this.listeners[key].indexOf(callback);
-      if (idx > -1) this.listeners[key].splice(idx, 1);
-    };
-  }
-
-  /**
-   * Undo last change
-   */
-  undo() {
-    if (this.undoStack.length === 0) return { ok: false };
-
-    const action = this.undoStack.pop();
-    const current = structuredClone(this.cache[action.key]);
-
-    if (action.data) {
-      this.cache[action.key] = action.data;
-    } else if (action.deleted !== undefined) {
-      this.cache[action.key].splice(action.index, 0, action.deleted);
-    }
-
-    this.redoStack.push(current);
-    this._notifyListeners(action.key);
-    return { ok: true };
-  }
-
-  /**
-   * Redo last undone change
-   */
-  redo() {
-    if (this.redoStack.length === 0) return { ok: false };
-
-    const toRestore = this.redoStack.pop();
-    const key = Object.keys(toRestore)[0];
-    this.undoStack.push(structuredClone(this.cache[key]));
-    this.cache[key] = toRestore;
-    this._notifyListeners(key);
-    return { ok: true };
-  }
-
-  /**
-   * Clear all data
-   */
-  clear() {
-    this.cache = {};
-    this.undoStack = [];
-    this.redoStack = [];
-    this.transactionLog = [];
-  }
-
-  /**
-   * Export all data
-   */
-  export() {
-    return structuredClone(this.cache);
-  }
-
-  /**
-   * Get collection count
-   */
-  count(key) {
-    return (this.cache[key] || []).length;
-  }
-
-  /**
-   * Private: Notify listeners of change
-   */
   _notifyListeners(key) {
     if (this.listeners[key]) {
       this.listeners[key].forEach(cb => cb(this.cache[key]));
@@ -233,5 +221,5 @@ class DataStore {
   }
 }
 
-// Export as singleton
 export const dataStore = new DataStore();
+

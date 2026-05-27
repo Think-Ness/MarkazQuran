@@ -32,6 +32,10 @@ function render(container) {
             <label>Periode Aktif (digunakan sebagai default di Rapot)</label>
             <input type="text" id="cfgPeriode" value="${esc(cfg.periodeAktif)}" placeholder="Semester 1 2024/2025">
           </div>
+          <div class="form-group">
+            <label>Batas Akhir Periode</label>
+            <input type="date" id="cfgPeriodeEnd" value="${esc(cfg.periodeEnd)}">
+          </div>
         </div>
       </div>
     </div>
@@ -169,6 +173,7 @@ function collectConfig() {
   return {
     namaLembaga       : document.getElementById('cfgNama').value.trim(),
     periodeAktif      : document.getElementById('cfgPeriode').value.trim(),
+    periodeEnd        : document.getElementById('cfgPeriodeEnd').value,
     nilaiMinLulus     : Number(document.getElementById('cfgNilaiMin').value),
     rentangNilai,
     indikatorChecklist

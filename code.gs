@@ -27,10 +27,11 @@ function doPost(e) {
       getHafalan, addHafalan, updateHafalan, deleteHafalan,
       getRapot, saveRapot, deleteRapot,
       getSesiUjian, addSesiUjian, updateSesiUjian, deleteSesiUjian,
-      getDashboardStats, getSurahList, setupSpreadsheet, setupSesiUjianSheet,
+      getDashboardStats, getSurahList, setupSpreadsheet, setupDatabase, repairDatabase,
       getConfig, saveConfig,
       getDataHealthStatus, validateData,
-      getTestWorkflowStatus
+      getTestWorkflowStatus,
+      saveRapotPdf, generateSheetStructure
     };
     if (!map[action]) { out.setContent(JSON.stringify({ok:false,msg:'Unknown action: '+action})); return out; }
     const result = data !== undefined ? map[action](data) : map[action]();
@@ -52,11 +53,11 @@ function initHeaders(sh, name) {
   const h = {
     [SHEET.SANTRI]     :['STambuk','Nama','Kelas','Daerah','Rayon','Kamar','TanggalMasuk','Status'],
     [SHEET.GURU]       :['IDGuru','Nama','Tahun','KamarBagian','Status'],
-    [SHEET.TES_BACAAN] :['ID','TipePeserta','PesertaID','IDPenguji','Tanggal','NoSurah','NamaSurah','Halaman','JenisTes','Ind1','Ind2','Ind3','Ind4','Ind5','Ind6','Ind7','Ind8','Ind9','Ind10','NilaiAkhir','Catatan','Timestamp'],
+    [SHEET.TES_BACAAN] :['ID','SesiID','TipePeserta','PesertaID','IDPenguji','Tanggal','NoSurah','NamaSurah','Halaman','JenisTes','Ind1','Ind2','Ind3','Ind4','Ind5','Ind6','Ind7','Ind8','Ind9','Ind10','NilaiAkhir','Catatan','Timestamp'],
     [SHEET.HAFALAN]    :['ID','STambuk','IDPenguji','NoSurah','NamaSurah','Juz','AyatDari','AyatSampai','Status','TanggalSetor','Catatan','Timestamp'],
-    [SHEET.RAPOT]      :['ID','STambuk','NamaSantri','Periode','NilaiBacaan','NilaiTajwid','NilaiHafalan','Kehadiran','Catatan','Rekomendasi','Tanggal','Timestamp'],
+    [SHEET.RAPOT]      :['ID', 'SesiID', 'STambuk', 'NamaSantri', 'Periode', 'TipeSesi', 'JenisTes', 'NilaiAkhir', 'DetailIndikator', 'Catatan', 'Tanggal', 'Timestamp'],
     [SHEET.CONFIG]     :['Key','Value'],
-    [SHEET.SESI_UJIAN] :['SesiID','NamaSesi','TipeSesi','Tanggal','PenanggungJawab','Peserta','TargetUjian','Status','Timestamp'],
+    [SHEET.SESI_UJIAN] :['SesiID','NamaSesi','TipeSesi','Tanggal','PenanggungJawab','Peserta','TargetUjian','Status','Periode','Penandatangan','TTDUrl','Timestamp'],
     [SHEET.AUDIT]      :['Timestamp','Action','EntityType','EntityId','User','OldData','NewData']
   };
   if (h[name]) sh.appendRow(h[name]);
@@ -69,6 +70,44 @@ function sheetToObjects(sh) {
 }
 function genId(p) { return p+new Date().getTime(); }
 function setupSpreadsheet() { Object.values(SHEET).forEach(n=>getSheet(n)); return JSON.stringify({ok:true}); }
+
+function repairDatabase() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let msgs = [];
+  const h = {
+    [SHEET.SANTRI]     :['STambuk','Nama','Kelas','Daerah','Rayon','Kamar','TanggalMasuk','Status'],
+    [SHEET.GURU]       :['IDGuru','Nama','Tahun','KamarBagian','Status'],
+    [SHEET.TES_BACAAN] :['ID','SesiID','TipePeserta','PesertaID','IDPenguji','Tanggal','NoSurah','NamaSurah','Halaman','JenisTes','Ind1','Ind2','Ind3','Ind4','Ind5','Ind6','Ind7','Ind8','Ind9','Ind10','NilaiAkhir','Catatan','Timestamp'],
+    [SHEET.HAFALAN]    :['ID','STambuk','IDPenguji','NoSurah','NamaSurah','Juz','AyatDari','AyatSampai','Status','TanggalSetor','Catatan','Timestamp'],
+    [SHEET.RAPOT]      :['ID', 'SesiID', 'STambuk', 'NamaSantri', 'Periode', 'TipeSesi', 'JenisTes', 'NilaiAkhir', 'DetailIndikator', 'Catatan', 'Tanggal', 'Timestamp'],
+    [SHEET.CONFIG]     :['Key','Value'],
+    [SHEET.SESI_UJIAN] :['SesiID','NamaSesi','TipeSesi','Tanggal','PenanggungJawab','Peserta','TargetUjian','Status','Periode','Penandatangan','TTDUrl','Timestamp'],
+    [SHEET.AUDIT]      :['Timestamp','Action','EntityType','EntityId','User','OldData','NewData']
+  };
+  
+  Object.keys(h).forEach(name => {
+    let sh = ss.getSheetByName(name);
+    if (!sh) {
+      sh = ss.insertSheet(name);
+      sh.appendRow(h[name]);
+      msgs.push('Membuat sheet baru: ' + name);
+    } else {
+      const existing = sh.getRange(1, 1, 1, h[name].length).getValues()[0];
+      const isCorrect = h[name].every((col, i) => existing[i] === col);
+      if (!isCorrect) {
+        // Force replace first row to match new schema!
+        sh.insertRowBefore(1);
+        sh.getRange(1, 1, 1, h[name].length).setValues([h[name]]);
+        sh.deleteRow(2);
+        msgs.push('Memperbaiki header (struktur lama): ' + name);
+      }
+    }
+    // Styling
+    sh.getRange(1, 1, 1, h[name].length).setBackground('#1a73e8').setFontColor('#ffffff').setFontWeight('bold');
+    sh.setFrozenRows(1);
+  });
+  return JSON.stringify({ ok: true, msg: 'Database berhasil direpair/disinkronisasi!', details: msgs });
+}
 
 // ── VALIDATION LAYER (Server-side data integrity) ────────────
 const VALIDATORS = {
@@ -88,18 +127,18 @@ const VALIDATORS = {
   tesBacaan: (d) => {
     const errors = [];
     if (!d.PesertaID) errors.push('ID Peserta harus diisi');
-    if (!d.NamaSurah) errors.push('Nama surah harus diisi');
-    if (d.JenisTes && !['Pre Test', 'Post Test'].includes(d.JenisTes)) errors.push('Jenis tes tidak valid');
+    if (!d.SesiID) errors.push('SesiID harus diisi');
+    if (!d.IDPenguji && !d.PengujiID && !d.Penguji) errors.push('Penguji harus diisi');
+    if (!d.NamaSurah && !d.SurahTarget && !d.Surah) errors.push('Nama surah harus diisi');
+    if (!d.JenisTes || String(d.JenisTes).trim() === '') errors.push('Jenis tes tidak boleh kosong');
     // Calculate score if indicators provided
-    if (d.Indikator || d.Ind1) {
+    if (d.Indikator || d.Ind1 !== undefined) {
       const ind = d.Indikator || {};
-      let totalErrors = 0;
-      for (let i = 1; i <= 10; i++) {
-        const val = d[`Ind${i}`] !== undefined ? d[`Ind${i}`] : (ind[`Ind${i}`] || 0);
-        totalErrors += Number(val) || 0;
-      }
-      if (totalErrors > 1000) errors.push('Total kesalahan tidak masuk akal (> 1000)');
-      d.NilaiAkhir = Math.max(0, 100 - (totalErrors * 2));
+      let jaliy = 0, khafiy = 0;
+      for (let i = 1; i <= 3; i++) jaliy += Number(d[`Ind${i}`] !== undefined ? d[`Ind${i}`] : (ind[`Ind${i}`] || 0)) || 0;
+      for (let i = 4; i <= 10; i++) khafiy += Number(d[`Ind${i}`] !== undefined ? d[`Ind${i}`] : (ind[`Ind${i}`] || 0)) || 0;
+      if (jaliy + khafiy > 1000) errors.push('Total kesalahan tidak masuk akal (> 1000)');
+      d.NilaiAkhir = Math.max(0, 100 - (jaliy * 15) - (khafiy * 5));
     }
     return { valid: errors.length === 0, errors, data: d };
   },
@@ -307,44 +346,58 @@ function deleteGuru(id) {
 function getTesBacaan() { return JSON.stringify(sheetToObjects(getSheet(SHEET.TES_BACAAN))); }
 function addTesBacaan(d) {
   try {
-    // Enhanced validation with warning flags
-    const val = validateData('tesBacaan', d);
-    if (!val.valid) return JSON.stringify({ ok: false, msg: 'Validasi gagal', errors: val.errors });
-
-    // Map field names for compatibility
     const finalData = {
+      SesiID: d.SesiID || '',
       TipePeserta: d.TipePeserta || 'Santri',
       PesertaID: d.PesertaID || d.STambuk,
-      IDPenguji: d.IDPenguji || d.PengujiID || d.Penguji || '',  // Support multiple field names
+      IDPenguji: d.IDPenguji || d.PengujiID || d.Penguji || '',
       Tanggal: d.Tanggal || new Date().toISOString().split('T')[0],
       NoSurah: d.NoSurah || d.SurahNo || '',
-      NamaSurah: d.NamaSurah || d.SurahTarget || d.Surah || '',  // Support multiple field names
-      Halaman: d.Halaman || d.Halaman || '',
+      NamaSurah: d.NamaSurah || d.SurahTarget || d.Surah || '',
+      Halaman: d.Halaman || '',
       JenisTes: d.JenisTes || 'Pre Test',
-      Ind1: d.Ind1 || '', Ind2: d.Ind2 || '', Ind3: d.Ind3 || '', Ind4: d.Ind4 || '', Ind5: d.Ind5 || '',
-      Ind6: d.Ind6 || '', Ind7: d.Ind7 || '', Ind8: d.Ind8 || '', Ind9: d.Ind9 || '', Ind10: d.Ind10 || '',
+      Ind1: d.Ind1 ?? 0, Ind2: d.Ind2 ?? 0, Ind3: d.Ind3 ?? 0, Ind4: d.Ind4 ?? 0, Ind5: d.Ind5 ?? 0,
+      Ind6: d.Ind6 ?? 0, Ind7: d.Ind7 ?? 0, Ind8: d.Ind8 ?? 0, Ind9: d.Ind9 ?? 0, Ind10: d.Ind10 ?? 0,
       Catatan: d.Catatan || ''
     };
 
-    // Calculate score from indicators if provided
-    let totalErrors = 0;
-    for (let i = 1; i <= 10; i++) {
-      totalErrors += Number(finalData[`Ind${i}`]) || 0;
-    }
-    finalData.NilaiAkhir = Math.max(0, 100 - (totalErrors * 2));
+    const val = validateData('tesBacaan', finalData);
+    if (!val.valid) return JSON.stringify({ ok: false, msg: 'Validasi gagal', errors: val.errors });
 
+    const allTes = sheetToObjects(getSheet(SHEET.TES_BACAAN));
+    const sesiTests = allTes
+      .filter(t => String(t.PesertaID) === String(finalData.PesertaID) && String(t.SesiID || '') === String(finalData.SesiID))
+      .sort((a, b) => new Date(b.Tanggal) - new Date(a.Tanggal));
+
+    const hasPre = sesiTests.some(t => t.JenisTes === 'Pre Test');
+    if (!hasPre && finalData.JenisTes !== 'Pre Test') {
+      return JSON.stringify({ ok: false, msg: 'Alur tes tidak valid: wajib Pre Test dulu pada sesi ini' });
+    }
+    if (hasPre && finalData.JenisTes === 'Pre Test') {
+      return JSON.stringify({ ok: false, msg: 'Pre Test pada sesi ini sudah ada. Lanjutkan ke Post Test atau edit Pre Test.' });
+    }
+
+    let jaliy = 0, khafiy = 0;
+    for (let i = 1; i <= 3; i++) jaliy += Number(finalData[`Ind${i}`]) || 0;
+    for (let i = 4; i <= 10; i++) khafiy += Number(finalData[`Ind${i}`]) || 0;
+    finalData.NilaiAkhir = Math.max(0, 100 - (jaliy * 15) - (khafiy * 5));
+
+    const id = genId('TS-');
     const sh = getSheet(SHEET.TES_BACAAN);
     sh.appendRow([
-      genId('TS-'), finalData.TipePeserta, finalData.PesertaID, finalData.IDPenguji, finalData.Tanggal,
-      finalData.NoSurah, finalData.NamaSurah, finalData.Halaman, finalData.JenisTes,
+      id,
+      finalData.SesiID,
+      finalData.TipePeserta, finalData.PesertaID, finalData.IDPenguji, finalData.Tanggal,
+      finalData.NoSurah, finalData.NamaSurah, "'" + finalData.Halaman, finalData.JenisTes,
       finalData.Ind1, finalData.Ind2, finalData.Ind3, finalData.Ind4, finalData.Ind5,
       finalData.Ind6, finalData.Ind7, finalData.Ind8, finalData.Ind9, finalData.Ind10,
-      finalData.NilaiAkhir, finalData.Catatan, new Date()
+      finalData.NilaiAkhir, finalData.Catatan, new Date().toISOString()
     ]);
 
     logAudit('ADD', 'TesBacaan', finalData.PesertaID, null, finalData);
     return JSON.stringify({
       ok: true,
+      id: id,
       nilaiAkhir: finalData.NilaiAkhir,
       jenisTes: finalData.JenisTes,
       msg: `✓ ${finalData.JenisTes} disimpan (Nilai: ${finalData.NilaiAkhir})`
@@ -368,24 +421,43 @@ function deleteTesBacaan(id) {
 }
 function updateTesBacaan(d) {
   try {
-    // Validate and auto-calculate
-    const val = validateData('tesBacaan', d);
+    const incoming = {
+      ID: d.ID,
+      SesiID: d.SesiID || '',
+      TipePeserta: d.TipePeserta || 'Santri',
+      PesertaID: d.PesertaID || d.STambuk,
+      IDPenguji: d.IDPenguji || d.PengujiID || d.Penguji || '',
+      Tanggal: d.Tanggal || new Date().toISOString().split('T')[0],
+      NoSurah: d.NoSurah || d.SurahNo || '',
+      NamaSurah: d.NamaSurah || d.SurahTarget || d.Surah || '',
+      Halaman: d.Halaman || '',
+      JenisTes: d.JenisTes || 'Pre Test',
+      Ind1: d.Ind1 ?? 0, Ind2: d.Ind2 ?? 0, Ind3: d.Ind3 ?? 0, Ind4: d.Ind4 ?? 0, Ind5: d.Ind5 ?? 0,
+      Ind6: d.Ind6 ?? 0, Ind7: d.Ind7 ?? 0, Ind8: d.Ind8 ?? 0, Ind9: d.Ind9 ?? 0, Ind10: d.Ind10 ?? 0,
+      Catatan: d.Catatan || ''
+    };
+
+    const val = validateData('tesBacaan', incoming);
     if (!val.valid) return JSON.stringify({ ok: false, msg: 'Validasi gagal', errors: val.errors });
 
-    const sh = getSheet(SHEET.TES_BACAAN), vals = sh.getDataRange().getValues();
-    const finalData = val.data || d;
+    let jaliy = 0, khafiy = 0;
+    for (let i = 1; i <= 3; i++) jaliy += Number(incoming[`Ind${i}`]) || 0;
+    for (let i = 4; i <= 10; i++) khafiy += Number(incoming[`Ind${i}`]) || 0;
+    incoming.NilaiAkhir = Math.max(0, 100 - (jaliy * 15) - (khafiy * 5));
 
+    const sh = getSheet(SHEET.TES_BACAAN), vals = sh.getDataRange().getValues();
     for (let i = 1; i < vals.length; i++) {
       if (String(vals[i][0]) === String(d.ID)) {
-        sh.getRange(i+1, 2, 1, 20).setValues([[
-          finalData.TipePeserta, finalData.PesertaID, finalData.IDPenguji || finalData.PengujiID, finalData.Tanggal,
-          finalData.NoSurah, finalData.NamaSurah, finalData.Halaman, finalData.JenisTes,
-          finalData.Ind1 || '', finalData.Ind2 || '', finalData.Ind3 || '', finalData.Ind4 || '', finalData.Ind5 || '',
-          finalData.Ind6 || '', finalData.Ind7 || '', finalData.Ind8 || '', finalData.Ind9 || '', finalData.Ind10 || '',
-          finalData.NilaiAkhir, finalData.Catatan
+        sh.getRange(i+1, 2, 1, 21).setValues([[
+          incoming.SesiID,
+          incoming.TipePeserta, incoming.PesertaID, incoming.IDPenguji, incoming.Tanggal,
+          incoming.NoSurah, incoming.NamaSurah, incoming.Halaman, incoming.JenisTes,
+          incoming.Ind1, incoming.Ind2, incoming.Ind3, incoming.Ind4, incoming.Ind5,
+          incoming.Ind6, incoming.Ind7, incoming.Ind8, incoming.Ind9, incoming.Ind10,
+          incoming.NilaiAkhir, incoming.Catatan
         ]]);
-        logAudit('UPDATE', 'TesBacaan', d.ID, null, finalData);
-        return JSON.stringify({ ok: true, nilaiAkhir: finalData.NilaiAkhir });
+        logAudit('UPDATE', 'TesBacaan', d.ID, null, incoming);
+        return JSON.stringify({ ok: true, nilaiAkhir: incoming.NilaiAkhir });
       }
     }
     return JSON.stringify({ ok: false, msg: 'Tidak ditemukan' });
@@ -410,7 +482,15 @@ function deleteHafalan(id) {
 // ── Rapot ─────────────────────────────────────────────────────
 function getRapot() { return JSON.stringify(sheetToObjects(getSheet(SHEET.RAPOT))); }
 function saveRapot(d) {
-  try { const id=genId('RP'); getSheet(SHEET.RAPOT).appendRow([id,d.STambuk,d.NamaSantri,d.Periode,d.NilaiBacaan,d.NilaiTajwid,d.NilaiHafalan,d.Kehadiran,d.Catatan,d.Rekomendasi,d.Tanggal,new Date().toISOString()]); return JSON.stringify({ok:true,id}); }
+  try { 
+    const id=genId('RP'); 
+    getSheet(SHEET.RAPOT).appendRow([
+      id, d.SesiID||'', d.STambuk, d.NamaSantri, d.Periode, 
+      d.TipeSesi||'', d.JenisTes||'', d.NilaiAkhir||0, d.DetailIndikator||'', 
+      d.Catatan||'', d.Tanggal, new Date().toISOString()
+    ]); 
+    return JSON.stringify({ok:true,id}); 
+  }
   catch(e){return JSON.stringify({ok:false,msg:e.message});}
 }
 function deleteRapot(id) {
@@ -513,6 +593,9 @@ function addSesiUjian(d) {
       typeof d.Peserta      === 'object' ? JSON.stringify(d.Peserta)      : (d.Peserta      || '[]'),
       typeof d.TargetUjian  === 'object' ? JSON.stringify(d.TargetUjian)  : (d.TargetUjian  || '[]'),
       d.Status          || 'Aktif',
+      d.Periode         || '',
+      d.Penandatangan   || '',
+      d.TTDUrl          || '',
       new Date().toISOString()
     ]);
     return JSON.stringify({ok:true, id});
@@ -524,14 +607,17 @@ function updateSesiUjian(d) {
     const sh=getSheet(SHEET.SESI_UJIAN), vals=sh.getDataRange().getValues();
     for(let i=1;i<vals.length;i++){
       if(String(vals[i][0])===String(d.SesiID)){
-        sh.getRange(i+1,2,1,7).setValues([[
+        sh.getRange(i+1,2,1,10).setValues([[
           d.NamaSesi        || '',
           d.TipeSesi        || '',
           d.Tanggal         || '',
           d.PenanggungJawab || '',
           typeof d.Peserta      === 'object' ? JSON.stringify(d.Peserta)      : (d.Peserta      || '[]'),
           typeof d.TargetUjian  === 'object' ? JSON.stringify(d.TargetUjian)  : (d.TargetUjian  || '[]'),
-          d.Status          || 'Aktif'
+          d.Status          || 'Aktif',
+          d.Periode         || '',
+          d.Penandatangan   || '',
+          d.TTDUrl          || ''
         ]]);
         return JSON.stringify({ok:true});
       }
@@ -555,10 +641,14 @@ function deleteSesiUjian(id) {
  * Get test workflow status for a student
  * Returns: { status, display, canPreTest, canPostTest, preTestData, postTestData }
  */
-function getTestWorkflowStatus(pesertaId) {
+function getTestWorkflowStatus(payload) {
   try {
+    const pesertaId = typeof payload === 'object' ? payload.pesertaId : payload;
+    const sesiId = typeof payload === 'object' ? payload.sesiId : '';
     const tes = sheetToObjects(getSheet(SHEET.TES_BACAAN));
-    const studentTests = tes.filter(t => String(t.PesertaID || t.STambuk) === String(pesertaId))
+    const studentTests = tes
+      .filter(t => String(t.PesertaID || t.STambuk) === String(pesertaId))
+      .filter(t => !sesiId || String(t.SesiID || '') === String(sesiId))
       .sort((a, b) => new Date(b.Tanggal) - new Date(a.Tanggal));
 
     if (studentTests.length === 0) {
@@ -633,73 +723,205 @@ function getTestWorkflowStatus(pesertaId) {
 }
 
 /**
- * setupSesiUjianSheet()
+ * setupDatabase()
  * ─────────────────────
  * Jalankan fungsi ini SATU KALI dari Apps Script Editor:
  *   1. Buka Apps Script (Ekstensi > Apps Script)
- *   2. Pilih fungsi "setupSesiUjianSheet" di dropdown
+ *   2. Pilih fungsi "setupDatabase" di dropdown
  *   3. Klik tombol "Jalankan (▶)"
  *
- * Fungsi ini akan:
- *   - Membuat sheet "SesiUjian" jika belum ada
- *   - Membersihkan header yang salah (jika ada)
- *   - Mengisi 9 header kolom secara akurat
- *   - Menebalkan & mewarnai baris header
- *   - Membekukan baris pertama (freeze row 1)
- *   - Merapikan lebar kolom otomatis
+ * Fungsi ini akan memastikan semua sheet penting tersedia beserta headernya.
  */
-function setupSesiUjianSheet() {
-  const ss        = SpreadsheetApp.getActiveSpreadsheet();
-  const sheetName = SHEET.SESI_UJIAN; // 'SesiUjian'
-  const HEADERS   = ['SesiID','NamaSesi','TipeSesi','Tanggal','PenanggungJawab','Peserta','TargetUjian','Status','Timestamp'];
+function setupDatabase() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  
+  const structures = {};
+  structures[SHEET.SANTRI] = ['STambuk', 'Nama', 'Kelas', 'Daerah', 'Rayon', 'Kamar', 'TanggalMasuk', 'Status'];
+  structures[SHEET.GURU] = ['IDGuru', 'Nama', 'Tahun', 'KamarBagian', 'Status'];
+  structures[SHEET.TES_BACAAN] = ['ID', 'SesiID', 'TipePeserta', 'PesertaID', 'IDPenguji', 'Tanggal', 'NoSurah', 'NamaSurah', 'Halaman', 'JenisTes', 'Ind1', 'Ind2', 'Ind3', 'Ind4', 'Ind5', 'Ind6', 'Ind7', 'Ind8', 'Ind9', 'Ind10', 'NilaiAkhir', 'Catatan', 'Timestamp'];
+  structures[SHEET.HAFALAN] = ['ID', 'STambuk', 'IDPenguji', 'NoSurah', 'NamaSurah', 'Juz', 'AyatDari', 'AyatSampai', 'Status', 'TanggalSetor', 'Catatan', 'Timestamp'];
+  structures[SHEET.SESI_UJIAN] = ['SesiID', 'NamaSesi', 'TipeSesi', 'Tanggal', 'PenanggungJawab', 'Peserta', 'TargetUjian', 'Status', 'Periode', 'Penandatangan', 'TTDUrl', 'Timestamp'];
+  structures[SHEET.RAPOT] = ['ID', 'SesiID', 'STambuk', 'NamaSantri', 'Periode', 'TipeSesi', 'JenisTes', 'NilaiAkhir', 'DetailIndikator', 'Catatan', 'Tanggal', 'Timestamp'];
+  structures[SHEET.CONFIG] = ['Key', 'Value'];
+  structures[SHEET.AUDIT] = ['Timestamp', 'Action', 'EntityType', 'EntityId', 'User', 'OldData', 'NewData'];
 
-  // Hapus sheet lama jika ada dan headernya salah, lalu buat ulang
-  let sh = ss.getSheetByName(sheetName);
-
-  if (sh) {
-    // Cek apakah header sudah benar
-    const existing = sh.getRange(1,1,1,HEADERS.length).getValues()[0];
-    const isCorrect = HEADERS.every((h,i) => existing[i] === h);
-    if (!isCorrect) {
-      // Bersihkan header baris pertama saja
-      sh.getRange(1, 1, 1, sh.getLastColumn()).clearContent();
-      sh.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
-      Logger.log('✅ Header SesiUjian diperbaiki.');
+  let created = [];
+  
+  Object.keys(structures).forEach(function(sheetName) {
+    let sh = ss.getSheetByName(sheetName);
+    const HEADERS = structures[sheetName];
+    
+    if (!sh) {
+      sh = ss.insertSheet(sheetName);
+      created.push(sheetName + ' (baru)');
     } else {
-      Logger.log('✅ Header SesiUjian sudah benar, tidak ada perubahan.');
+      created.push(sheetName + ' (cek header)');
     }
-  } else {
-    // Buat sheet baru
-    sh = ss.insertSheet(sheetName);
-    sh.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
-    Logger.log('✅ Sheet "SesiUjian" baru dibuat.');
-  }
-
-  // Styling header
-  const headerRange = sh.getRange(1, 1, 1, HEADERS.length);
-  headerRange
-    .setBackground('#1a73e8')       // Biru Google
-    .setFontColor('#ffffff')         // Putih
-    .setFontWeight('bold')
-    .setHorizontalAlignment('center');
-
-  // Freeze baris pertama
-  sh.setFrozenRows(1);
-
-  // Auto-resize kolom
-  sh.autoResizeColumns(1, HEADERS.length);
-
-  // Lebar minimum untuk kolom JSON (Peserta & TargetUjian)
-  sh.setColumnWidth(6, 250); // Peserta
-  sh.setColumnWidth(7, 250); // TargetUjian
+    
+    // Set headers
+    const headerRange = sh.getRange(1, 1, 1, HEADERS.length);
+    headerRange.setValues([HEADERS]);
+    headerRange
+      .setBackground('#1b6b4a')
+      .setFontColor('#ffffff')
+      .setFontWeight('bold')
+      .setHorizontalAlignment('center');
+    
+    sh.setFrozenRows(1);
+    
+    // Auto resize
+    try {
+      sh.autoResizeColumns(1, HEADERS.length);
+    } catch(e) {}
+    
+    // Special widths
+    if (sheetName === SHEET.SESI_UJIAN) {
+      sh.setColumnWidth(6, 250); // Peserta JSON
+      sh.setColumnWidth(7, 250); // TargetUjian JSON
+    }
+    if (sheetName === SHEET.RAPOT) {
+      sh.setColumnWidth(9, 300); // DetailIndikator JSON
+    }
+  });
 
   SpreadsheetApp.flush();
-  Logger.log('🎉 setupSesiUjianSheet() selesai! Sheet siap digunakan.');
+  Logger.log('🎉 setupDatabase() selesai! Struktur sheet siap digunakan.');
   SpreadsheetApp.getUi().alert(
-    '✅ Setup Berhasil!',
-    'Sheet "SesiUjian" sudah disiapkan dengan benar.\n\n' +
-    'Headers: ' + HEADERS.join(', ') + '\n\n' +
-    'Sekarang silakan Deploy ulang (Deploy > Versi Baru) agar perubahan code aktif.',
+    '✅ Setup Database Berhasil!',
+    'Sheet-sheet berikut telah disiapkan:\n\n' + created.join('\n') + '\n\nSilakan Deploy Ulang jika ada perubahan kode.',
     SpreadsheetApp.getUi().ButtonSet.OK
   );
+}
+
+// ── NEW API ENDPOINTS FOR RAPOT OVERHAUL ────────────────────────
+
+/**
+ * Konversi HTML rapot jadi PDF dan simpan ke Google Drive
+ * @param {Object} data - { html, fileName, folderPath, periode, kelas, tipePeserta }
+ * @returns {Object} { ok, url, msg }
+ */
+function saveRapotPdf(data) {
+  try {
+    var html = data.html;
+    var fileName = (data.fileName || 'Rapot') + '.pdf';
+    var periode = data.periode || 'Default';
+    var kelas = data.kelas || 'Umum';
+    var tipePeserta = data.tipePeserta || 'Santri';
+    
+    // Wrap HTML with proper styling for PDF
+    var fullHtml = '<!DOCTYPE html><html><head><meta charset="utf-8">'
+      + '<style>body{font-family:Arial,sans-serif;margin:20px;font-size:12px;} '
+      + '.badge{display:inline-block;padding:2px 6px;border-radius:4px;font-size:10px;} '
+      + '.badge-selesai{background:#dcfce7;color:#166534;} '
+      + '.badge-proses{background:#fef9c3;color:#854d0e;} '
+      + '.badge-belum{background:#fee2e2;color:#991b1b;}'
+      + '</style></head><body>' + html + '</body></html>';
+    
+    // Create PDF blob
+    var blob = HtmlService.createHtmlOutput(fullHtml)
+      .getBlob()
+      .setName(fileName);
+    
+    // Build folder path: Markaz Quran / [Periode] / [Santri|Guru] / [Kelas|TahunPengabdian]
+    var rootFolder = getOrCreateFolder(DriveApp.getRootFolder(), 'Markaz Quran');
+    var periodeFolder = getOrCreateFolder(rootFolder, periode);
+    
+    var typeFolder, file;
+    if (tipePeserta === 'Guru' || tipePeserta === 'guru') {
+      typeFolder = getOrCreateFolder(periodeFolder, 'Guru');
+      var yearFolder = getOrCreateFolder(typeFolder, kelas); // kelas = tahun pengabdian for guru
+      file = yearFolder.createFile(blob);
+    } else {
+      typeFolder = getOrCreateFolder(periodeFolder, 'Santri');
+      var kelasFolder = getOrCreateFolder(typeFolder, kelas);
+      file = kelasFolder.createFile(blob);
+    }
+    
+    return { ok: true, url: file.getUrl(), id: file.getId() };
+  } catch (e) {
+    return { ok: false, msg: e.toString() };
+  }
+}
+
+/**
+ * Helper: Get or create a subfolder
+ */
+function getOrCreateFolder(parent, name) {
+  var folders = parent.getFoldersByName(name);
+  if (folders.hasNext()) {
+    return folders.next();
+  }
+  return parent.createFolder(name);
+}
+
+/**
+ * Generate / reset semua sheet dengan header yang benar
+ * @param {Object} data - { sheets: ['Santri','Guru',...] } atau kosong untuk semua
+ * @returns {Object} { ok, created, msg }
+ */
+function generateSheetStructure(data) {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    
+    var structures = {};
+    structures[SHEET.SANTRI] = ['STambuk', 'Nama', 'Kelas', 'Daerah', 'Rayon', 'Kamar', 'TanggalMasuk', 'Status'];
+    structures[SHEET.GURU] = ['IDGuru', 'Nama', 'Tahun', 'KamarBagian', 'Status'];
+    structures[SHEET.TES_BACAAN] = ['ID', 'SesiID', 'TipePeserta', 'PesertaID', 'IDPenguji', 'Tanggal', 'NoSurah', 'NamaSurah', 'Halaman', 'JenisTes', 'Ind1', 'Ind2', 'Ind3', 'Ind4', 'Ind5', 'Ind6', 'Ind7', 'Ind8', 'Ind9', 'Ind10', 'NilaiAkhir', 'Catatan', 'Timestamp'];
+    structures[SHEET.HAFALAN] = ['ID', 'STambuk', 'IDPenguji', 'NoSurah', 'NamaSurah', 'Juz', 'AyatDari', 'AyatSampai', 'Status', 'TanggalSetor', 'Catatan', 'Timestamp'];
+    structures[SHEET.SESI_UJIAN] = ['SesiID', 'NamaSesi', 'TipeSesi', 'Tanggal', 'PenanggungJawab', 'Peserta', 'TargetUjian', 'Status', 'Periode', 'Penandatangan', 'TTDUrl', 'Timestamp'];
+    structures[SHEET.RAPOT] = ['ID', 'SesiID', 'STambuk', 'NamaSantri', 'Periode', 'TipeSesi', 'JenisTes', 'NilaiAkhir', 'DetailIndikator', 'Catatan', 'Tanggal', 'Timestamp'];
+    structures[SHEET.CONFIG] = ['Key', 'Value'];
+    structures[SHEET.AUDIT] = ['Timestamp', 'Action', 'EntityType', 'EntityId', 'User', 'OldData', 'NewData'];
+    
+    var targetSheets = (data && data.sheets) ? data.sheets : Object.keys(structures);
+    var created = [];
+    
+    targetSheets.forEach(function(name) {
+      if (!structures[name]) return;
+      
+      var sheet = ss.getSheetByName(name);
+      if (!sheet) {
+        sheet = ss.insertSheet(name);
+        created.push(name + ' (baru)');
+      } else {
+        created.push(name + ' (update header)');
+      }
+      
+      var headers = structures[name];
+      var headerRange = sheet.getRange(1, 1, 1, headers.length);
+      headerRange.setValues([headers]);
+      headerRange.setFontWeight('bold');
+      headerRange.setBackground('#1b6b4a');
+      headerRange.setFontColor('#ffffff');
+      sheet.setFrozenRows(1);
+    });
+    
+    return { ok: true, created: created };
+  } catch (e) {
+    return { ok: false, msg: e.toString() };
+  }
+}
+
+/**
+ * ─────────────────────────────────────────────────────────────
+ * ALAT BANTU OTORISASI GOOGLE DRIVE
+ * ─────────────────────────────────────────────────────────────
+ * Cara Penggunaan:
+ * 1. Buka file Code.gs di Google Apps Script Editor.
+ * 2. Pilih fungsi "testDriveAuth" pada dropdown di atas (sebelah tombol Jalankan/Run).
+ * 3. Klik "Jalankan" (Run).
+ * 4. Google akan memunculkan popup "Authorization Required".
+ * 5. Klik Review Permissions -> Pilih akun Anda -> Advanced -> Go to ... (unsafe) -> Allow.
+ * 
+ * Ini akan memberikan izin kepada script untuk mengakses Google Drive 
+ * sehingga fitur penyimpanan PDF Rapot dapat berfungsi.
+ */
+function testDriveAuth() {
+  try {
+    var root = DriveApp.getRootFolder();
+    Logger.log("Berhasil mengakses Drive: " + root.getName());
+    SpreadsheetApp.getUi().alert("Otorisasi Drive Berhasil!", "Script sekarang memiliki izin untuk mengakses Google Drive.", SpreadsheetApp.getUi().ButtonSet.OK);
+  } catch (e) {
+    Logger.log("Gagal mengakses Drive: " + e.toString());
+  }
 }

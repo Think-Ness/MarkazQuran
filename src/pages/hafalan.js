@@ -1,9 +1,12 @@
 import { getHafalan,addHafalan,updateHafalan,deleteHafalan,getSantri,getGuru,getSurahList,getSesiUjian } from '../api.js';
 import { fmtDate, showToast } from '../utils.js';
 import { SearchableSelect } from '../components/searchable-select.js';
+import { ColumnFilter } from '../components/column-filter.js';
 
 let allHafalan=[],allSantri=[],allGuru=[],allSurah=[],allSesi=[],editingId=null;
 let ssSantri, ssPenguji, ssSurah;
+let hfSortCol = null, hfSortDir = 'asc';
+let hfColFilter = null;
 
 export async function renderHafalan(container) {
   container.innerHTML = `
@@ -15,7 +18,7 @@ export async function renderHafalan(container) {
     <div class="card mb-16" style="margin-bottom:16px;">
       <div class="card-body" style="padding:14px 20px;">
         <div class="filter-bar">
-          <div class="search-box"><span class="search-icon">&#128269;</span><input type="text" id="srch" placeholder="Cari stambuk / surah..."></div>
+          <div class="search-box"><span class="search-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:#64748b;"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></span><input type="text" id="srch" placeholder="Cari stambuk / surah..."></div>
           <select id="flSantri" style="width:180px;"><option value="">Semua Santri</option></select>
           <select id="flStatus" style="width:130px;"><option value="">Semua Status</option><option value="Selesai">Selesai</option><option value="Proses">Proses</option><option value="Belum">Belum</option></select>
           <select id="flJuz" style="width:110px;"><option value="">Semua Juz</option></select>
@@ -27,7 +30,17 @@ export async function renderHafalan(container) {
       <div class="card-header"><h3>Daftar Setoran Hafalan</h3><span class="text-muted" id="countLabel">-</span></div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>#</th><th>Stambuk</th><th>Santri</th><th>Surah</th><th>Juz</th><th>Status</th><th>Terakhir Setor</th><th>Penguji</th><th>Aksi</th></tr></thead>
+          <thead><tr>
+            <th class="sortable-th" data-sort="no" style="cursor:pointer;user-select:none;"># <span class="sort-icon"></span></th>
+            <th class="sortable-th" data-sort="stambuk" style="cursor:pointer;user-select:none;">Stambuk <span class="sort-icon"></span></th>
+            <th class="sortable-th" data-sort="santri" style="cursor:pointer;user-select:none;">Santri <span class="sort-icon"></span></th>
+            <th>Surah</th>
+            <th class="sortable-th" data-sort="juz" style="cursor:pointer;user-select:none;">Juz <span class="sort-icon"></span></th>
+            <th class="sortable-th" data-sort="status" style="cursor:pointer;user-select:none;">Status <span class="sort-icon"></span></th>
+            <th class="sortable-th" data-sort="tanggal" style="cursor:pointer;user-select:none;">Terakhir Setor <span class="sort-icon"></span></th>
+            <th class="sortable-th" data-sort="penguji" style="cursor:pointer;user-select:none;">Penguji <span class="sort-icon"></span></th>
+            <th>Aksi</th>
+          </tr></thead>
           <tbody id="hafalanBody"><tr><td colspan="9" class="no-data">Memuat...</td></tr></tbody>
         </table>
       </div>
@@ -35,7 +48,10 @@ export async function renderHafalan(container) {
     <div class="card" id="progressSection" style="display:none;">
       <div class="card-header">
         <h3 id="progressTitle">Progress Santri</h3>
-        <button class="btn btn-outline btn-sm" id="btnCloseProgress">Tutup</button>
+        <button class="btn btn-outline btn-sm" id="btnCloseProgress" style="display:inline-flex;align-items:center;gap:4px;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+          Tutup
+        </button>
       </div>
       <div class="card-body" id="progressBody"></div>
     </div>
@@ -44,7 +60,7 @@ export async function renderHafalan(container) {
     <div class="modal-overlay" id="modalHafalan">
       <div class="modal modal-lg">
         <div class="modal-header"><h3 id="modalTitle">Input Hafalan</h3>
-          <button class="btn btn-outline btn-sm" onclick="document.getElementById('modalHafalan').classList.remove('show')">&#10005;</button>
+          <button class="btn btn-outline btn-sm" style="display:inline-flex;align-items:center;justify-content:center;height:28px;width:28px;padding:0;" onclick="document.getElementById('modalHafalan').classList.remove('show')"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
         </div>
         <div class="modal-body">
           <div id="hfAlert"></div>
@@ -112,7 +128,7 @@ export async function renderHafalan(container) {
     <div class="modal-overlay" id="modalUpdate">
       <div class="modal">
         <div class="modal-header"><h3>Update Status Hafalan</h3>
-          <button class="btn btn-outline btn-sm" onclick="document.getElementById('modalUpdate').classList.remove('show')">&#10005;</button>
+          <button class="btn btn-outline btn-sm" style="display:inline-flex;align-items:center;justify-content:center;height:28px;width:28px;padding:0;" onclick="document.getElementById('modalUpdate').classList.remove('show')"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
         </div>
         <div class="modal-body">
           <p id="updateDesc" style="font-size:13px;margin-bottom:14px;color:var(--text-muted);"></p>
@@ -141,6 +157,54 @@ export async function renderHafalan(container) {
   document.getElementById('btnCloseProgress').onclick = () => {
     document.getElementById('progressSection').style.display = 'none';
   };
+
+  // Sortable headers
+  document.querySelectorAll('.sortable-th[data-sort]').forEach(th => {
+    th.onclick = () => {
+      const col = th.dataset.sort;
+      if (hfSortCol === col) hfSortDir = hfSortDir === 'asc' ? 'desc' : 'asc';
+      else { hfSortCol = col; hfSortDir = 'asc'; }
+      // Update icons
+      document.querySelectorAll('.sortable-th .sort-icon').forEach(ic => { ic.innerHTML = ''; });
+      const icon = th.querySelector('.sort-icon');
+      if (icon) icon.innerHTML = hfSortDir === 'asc'
+        ? '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>'
+        : '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
+      applyFilter();
+    };
+  });
+
+  // Column filters
+  hfColFilter = new ColumnFilter({
+    onFilter: () => applyFilter(),
+    getValues: (colKey) => {
+      const grouped = {};
+      allHafalan.forEach(h => {
+        if (!grouped[h.STambuk]) grouped[h.STambuk] = [];
+        grouped[h.STambuk].push(h);
+      });
+      return Object.entries(grouped).map(([st, items]) => {
+        const sorted = [...items].sort((a,b) => new Date(b.TanggalSetor) - new Date(a.TanggalSetor));
+        switch(colKey) {
+          case 'santri': return getSantriNama(st);
+          case 'status': {
+            const s = items.filter(h=>h.Status==='Selesai').length;
+            const p = items.filter(h=>h.Status==='Proses').length;
+            return s > 0 ? 'Selesai' : (p > 0 ? 'Proses' : 'Belum');
+          }
+          case 'penguji': return getGuruNama(sorted[0]?.IDPenguji);
+          default: return st;
+        }
+      });
+    }
+  });
+  // Attach to specific columns
+  document.querySelectorAll('.sortable-th[data-sort]').forEach(th => {
+    const col = th.dataset.sort;
+    if (['santri','status','penguji'].includes(col)) {
+      hfColFilter.attach(th, col);
+    }
+  });
 }
 
 async function loadAll() {
@@ -161,7 +225,9 @@ async function loadAll() {
 
 
 function populateFilters() {
-  document.getElementById('flSantri').innerHTML =
+  const flSantri = document.getElementById('flSantri');
+  if (!flSantri) return;
+  flSantri.innerHTML =
     '<option value="">Semua Santri</option>' +
     allSantri.map(s => `<option value="${s.STambuk}">${s.STambuk} — ${s.Nama}</option>`).join('');
   const juzList = [...new Set(allSurah.map(s => s.juz))].sort((a, b) => a - b);
@@ -176,11 +242,11 @@ function renderSummary() {
   const proses  = allHafalan.filter(h => h.Status === 'Proses').length;
   const belum   = allHafalan.filter(h => h.Status === 'Belum').length;
   document.getElementById('summaryCards').innerHTML = `
-    <div class="stat-card"><div class="stat-icon green">&#9654;</div><div><div class="stat-label">Total Setoran</div><div class="stat-value">${total}</div></div></div>
-    <div class="stat-card"><div class="stat-icon green">&#10003;</div><div><div class="stat-label">Selesai</div><div class="stat-value">${selesai}</div></div></div>
-    <div class="stat-card"><div class="stat-icon gold">&#8987;</div><div><div class="stat-label">Proses</div><div class="stat-value">${proses}</div></div></div>
-    <div class="stat-card"><div class="stat-icon red">&#9711;</div><div><div class="stat-label">Belum</div><div class="stat-value">${belum}</div></div></div>
-    <div class="stat-card"><div class="stat-icon blue">&#128100;</div><div><div class="stat-label">Santri Menyetor</div><div class="stat-value">${new Set(allHafalan.map(h => h.STambuk)).size}</div></div></div>`;
+    <div class="stat-card"><div class="stat-icon green"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></div><div><div class="stat-label">Total Setoran</div><div class="stat-value">${total}</div></div></div>
+    <div class="stat-card"><div class="stat-icon green"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div><div><div class="stat-label">Selesai</div><div class="stat-value">${selesai}</div></div></div>
+    <div class="stat-card"><div class="stat-icon gold"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><div><div class="stat-label">Proses</div><div class="stat-value">${proses}</div></div></div>
+    <div class="stat-card"><div class="stat-icon red"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></div><div><div class="stat-label">Belum</div><div class="stat-value">${belum}</div></div></div>
+    <div class="stat-card"><div class="stat-icon blue"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div><div><div class="stat-label">Santri Menyetor</div><div class="stat-value">${new Set(allHafalan.map(h => h.STambuk)).size}</div></div></div>`;
 }
 
 function applyFilter() {
@@ -203,7 +269,33 @@ function renderTable(data) {
     grouped[h.STambuk].push(h);
   });
   
-  const entries = Object.entries(grouped);
+  let entries = Object.entries(grouped);
+  
+  // Apply column filters
+  if (hfColFilter) {
+    const filters = hfColFilter.getActiveFilters();
+    if (Object.keys(filters).length) {
+      entries = entries.filter(([stambuk, items]) => {
+        const sorted = [...items].sort((a,b) => new Date(b.TanggalSetor) - new Date(a.TanggalSetor));
+        for (const [colKey, allowed] of Object.entries(filters)) {
+          let val;
+          switch (colKey) {
+            case 'santri': val = getSantriNama(stambuk); break;
+            case 'status': {
+              const s = items.filter(h=>h.Status==='Selesai').length;
+              const p = items.filter(h=>h.Status==='Proses').length;
+              val = s > 0 ? 'Selesai' : (p > 0 ? 'Proses' : 'Belum'); break;
+            }
+            case 'penguji': val = getGuruNama(sorted[0]?.IDPenguji); break;
+            default: val = stambuk;
+          }
+          if (!allowed.has(String(val))) return false;
+        }
+        return true;
+      });
+    }
+  }
+  
   document.getElementById('countLabel').textContent = entries.length + ' santri (' + data.length + ' setoran)';
   
   if (!entries.length) {
@@ -211,6 +303,32 @@ function renderTable(data) {
     return;
   }
   
+  // Sorting
+  if (hfSortCol) {
+    entries.sort((a, b) => {
+      const [stA, itemsA] = a, [stB, itemsB] = b;
+      let vA, vB;
+      const sortedA = [...itemsA].sort((x,y) => new Date(y.TanggalSetor) - new Date(x.TanggalSetor));
+      const sortedB = [...itemsB].sort((x,y) => new Date(y.TanggalSetor) - new Date(x.TanggalSetor));
+      switch (hfSortCol) {
+        case 'stambuk': vA = stA; vB = stB; break;
+        case 'santri': vA = getSantriNama(stA).toLowerCase(); vB = getSantriNama(stB).toLowerCase(); break;
+        case 'juz': vA = Math.min(...itemsA.map(h => Number(h.Juz)||0)); vB = Math.min(...itemsB.map(h => Number(h.Juz)||0)); break;
+        case 'status': {
+          const ord = {Selesai:3,Proses:2,Belum:1};
+          const bestA = Math.max(...itemsA.map(h => ord[h.Status]||0));
+          const bestB = Math.max(...itemsB.map(h => ord[h.Status]||0));
+          vA = bestA; vB = bestB; break;
+        }
+        case 'tanggal': vA = new Date(sortedA[0]?.TanggalSetor||0).getTime(); vB = new Date(sortedB[0]?.TanggalSetor||0).getTime(); break;
+        case 'penguji': vA = getGuruNama(sortedA[0]?.IDPenguji).toLowerCase(); vB = getGuruNama(sortedB[0]?.IDPenguji).toLowerCase(); break;
+        default: vA = 0; vB = 0;
+      }
+      if (typeof vA === 'string') return hfSortDir === 'asc' ? vA.localeCompare(vB) : vB.localeCompare(vA);
+      return hfSortDir === 'asc' ? vA - vB : vB - vA;
+    });
+  }
+
   document.getElementById('hafalanBody').innerHTML = entries.map(([stambuk, items], i) => {
     // surahs
     let surahs = [...new Set(items.map(h => h.NamaSurah))];
@@ -247,7 +365,10 @@ function renderTable(data) {
       <td style="vertical-align:middle;font-size:12px;">${fmtDate(latestTgl)}</td>
       <td style="vertical-align:middle;font-size:12px;">${latestPenguji}</td>
       <td style="vertical-align:middle;">
-        <button class="btn btn-outline btn-sm" data-progress="${stambuk}">Lihat Progress</button>
+        <button class="btn btn-outline btn-sm" data-progress="${stambuk}" style="display:inline-flex;align-items:center;gap:5px;font-size:11px;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
+          Progress
+        </button>
       </td>
     </tr>`;
   }).join('');
@@ -292,8 +413,8 @@ function showProgress(stambuk) {
         <td style="font-size:12px;max-width:150px;overflow:hidden;text-overflow:ellipsis;">${h.Catatan||'-'}</td>
         <td>
           <div class="flex gap-4">
-            <button class="btn btn-outline btn-sm" style="display:inline-flex;align-items:center;justify-content:center;height:24px;width:24px;" data-upd="${h.ID}" title="Edit"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
-            <button class="btn btn-danger btn-sm" style="display:inline-flex;align-items:center;justify-content:center;height:24px;width:24px;" data-del="${h.ID}" title="Hapus"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></button>
+            <button class="btn btn-outline btn-sm" style="display:inline-flex;align-items:center;justify-content:center;height:26px;width:26px;padding:0;" data-upd="${h.ID}" title="Edit"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
+            <button class="btn btn-danger btn-sm" style="display:inline-flex;align-items:center;justify-content:center;height:26px;width:26px;padding:0;" data-del="${h.ID}" title="Hapus"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></button>
           </div>
         </td>
       </tr>`).join('')}</tbody>
@@ -371,7 +492,7 @@ function checkSantriProses(stambuk) {
   if (activeProses.length > 0 && !editingId) {
     const list = activeProses.map(h => `<li style="padding:2px 0;">${h.NamaSurah} (Ayat ${h.AyatDari}-${h.AyatSampai})</li>`).join('');
     document.getElementById('hfWarningText').innerHTML = `
-      <strong style="display:block;margin-bottom:4px;color:#d97706;">&#9888; Santri Masih Memiliki Target "Proses"</strong> 
+      <strong style="display:flex;align-items:center;gap:6px;margin-bottom:4px;color:#d97706;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg> Santri Masih Memiliki Target "Proses"</strong> 
       Santri ini masih memiliki setoran hafalan yang belum selesai:
       <ul style="margin:6px 0 0 20px;font-size:12px;color:var(--text);">${list}</ul>
       <p style="margin-top:6px;font-size:11px;">Mohon selesaikan setoran tersebut, atau centang izin di bawah untuk mengabaikan peringatan ini.</p>`;
