@@ -77,8 +77,8 @@ function repairDatabase() {
   const h = {
     [SHEET.SANTRI]     :['STambuk','Nama','Kelas','Daerah','Rayon','Kamar','TanggalMasuk','Status'],
     [SHEET.GURU]       :['IDGuru','Nama','Tahun','KamarBagian','Status'],
-    [SHEET.TES_BACAAN] :['ID','SesiID','TipePeserta','PesertaID','IDPenguji','Tanggal','NoSurah','NamaSurah','Halaman','JenisTes','Ind1','Ind2','Ind3','Ind4','Ind5','Ind6','Ind7','Ind8','Ind9','Ind10','NilaiAkhir','Catatan','Timestamp'],
-    [SHEET.HAFALAN]    :['ID','STambuk','IDPenguji','NoSurah','NamaSurah','Juz','AyatDari','AyatSampai','Status','TanggalSetor','Catatan','Timestamp'],
+    [SHEET.TES_BACAAN] :['ID','SesiID','TipePeserta','PesertaID','IDPenguji','Tanggal','NoSurah','NamaSurah','Halaman','JenisTes','Ind1','Ind2','Ind3','Ind4','Ind5','Ind6','Ind7','Ind8','Ind9','Ind10','NilaiAkhir','Catatan','Periode','Timestamp'],
+    [SHEET.HAFALAN]    :['ID','STambuk','IDPenguji','NoSurah','NamaSurah','Juz','AyatDari','AyatSampai','Status','TanggalSetor','Catatan','Periode','Timestamp'],
     [SHEET.RAPOT]      :['ID', 'SesiID', 'STambuk', 'NamaSantri', 'Periode', 'TipeSesi', 'JenisTes', 'NilaiAkhir', 'DetailIndikator', 'Catatan', 'Tanggal', 'Timestamp'],
     [SHEET.CONFIG]     :['Key','Value'],
     [SHEET.SESI_UJIAN] :['SesiID','NamaSesi','TipeSesi','Tanggal','PenanggungJawab','Peserta','TargetUjian','Status','Periode','Penandatangan','TTDUrl','Timestamp'],
@@ -384,6 +384,8 @@ function addTesBacaan(d) {
 
     const id = genId('TS-');
     const sh = getSheet(SHEET.TES_BACAAN);
+    const activePeriode = JSON.parse(getConfig()).periodeAktif || '';
+    
     sh.appendRow([
       id,
       finalData.SesiID,
@@ -391,7 +393,7 @@ function addTesBacaan(d) {
       finalData.NoSurah, finalData.NamaSurah, "'" + finalData.Halaman, finalData.JenisTes,
       finalData.Ind1, finalData.Ind2, finalData.Ind3, finalData.Ind4, finalData.Ind5,
       finalData.Ind6, finalData.Ind7, finalData.Ind8, finalData.Ind9, finalData.Ind10,
-      finalData.NilaiAkhir, finalData.Catatan, new Date().toISOString()
+      finalData.NilaiAkhir, finalData.Catatan, finalData.Periode || activePeriode, new Date().toISOString()
     ]);
 
     logAudit('ADD', 'TesBacaan', finalData.PesertaID, null, finalData);
@@ -434,7 +436,8 @@ function updateTesBacaan(d) {
       JenisTes: d.JenisTes || 'Pre Test',
       Ind1: d.Ind1 ?? 0, Ind2: d.Ind2 ?? 0, Ind3: d.Ind3 ?? 0, Ind4: d.Ind4 ?? 0, Ind5: d.Ind5 ?? 0,
       Ind6: d.Ind6 ?? 0, Ind7: d.Ind7 ?? 0, Ind8: d.Ind8 ?? 0, Ind9: d.Ind9 ?? 0, Ind10: d.Ind10 ?? 0,
-      Catatan: d.Catatan || ''
+      Catatan: d.Catatan || '',
+      Periode: d.Periode || ''
     };
 
     const val = validateData('tesBacaan', incoming);
@@ -448,13 +451,14 @@ function updateTesBacaan(d) {
     const sh = getSheet(SHEET.TES_BACAAN), vals = sh.getDataRange().getValues();
     for (let i = 1; i < vals.length; i++) {
       if (String(vals[i][0]) === String(d.ID)) {
-        sh.getRange(i+1, 2, 1, 21).setValues([[
+        const p = incoming.Periode || vals[i][22] || JSON.parse(getConfig()).periodeAktif || '';
+        sh.getRange(i+1, 2, 1, 22).setValues([[
           incoming.SesiID,
           incoming.TipePeserta, incoming.PesertaID, incoming.IDPenguji, incoming.Tanggal,
           incoming.NoSurah, incoming.NamaSurah, incoming.Halaman, incoming.JenisTes,
           incoming.Ind1, incoming.Ind2, incoming.Ind3, incoming.Ind4, incoming.Ind5,
           incoming.Ind6, incoming.Ind7, incoming.Ind8, incoming.Ind9, incoming.Ind10,
-          incoming.NilaiAkhir, incoming.Catatan
+          incoming.NilaiAkhir, incoming.Catatan, p
         ]]);
         logAudit('UPDATE', 'TesBacaan', d.ID, null, incoming);
         return JSON.stringify({ ok: true, nilaiAkhir: incoming.NilaiAkhir });
@@ -467,11 +471,26 @@ function updateTesBacaan(d) {
 // ── Hafalan ───────────────────────────────────────────────────
 function getHafalan() { return JSON.stringify(sheetToObjects(getSheet(SHEET.HAFALAN))); }
 function addHafalan(d) {
-  try { const id=genId('HF'); getSheet(SHEET.HAFALAN).appendRow([id,d.STambuk,d.IDPenguji,d.NoSurah,d.NamaSurah,d.Juz,d.AyatDari,d.AyatSampai,d.Status,d.TanggalSetor,d.Catatan,new Date().toISOString()]); return JSON.stringify({ok:true,id}); }
+  try { 
+    const id=genId('HF'); 
+    const activePeriode = JSON.parse(getConfig()).periodeAktif || '';
+    getSheet(SHEET.HAFALAN).appendRow([id,d.STambuk,d.IDPenguji,d.NoSurah,d.NamaSurah,d.Juz,d.AyatDari,d.AyatSampai,d.Status,d.TanggalSetor,d.Catatan, d.Periode || activePeriode, new Date().toISOString()]); 
+    return JSON.stringify({ok:true,id}); 
+  }
   catch(e){return JSON.stringify({ok:false,msg:e.message});}
 }
 function updateHafalan(d) {
-  try { const sh=getSheet(SHEET.HAFALAN),vals=sh.getDataRange().getValues(); for(let i=1;i<vals.length;i++){if(String(vals[i][0])===String(d.ID)){sh.getRange(i+1,9,1,3).setValues([[d.Status,d.TanggalSetor,d.Catatan]]);return JSON.stringify({ok:true});}} return JSON.stringify({ok:false,msg:'Tidak ditemukan'}); }
+  try { 
+    const sh=getSheet(SHEET.HAFALAN),vals=sh.getDataRange().getValues(); 
+    for(let i=1;i<vals.length;i++){
+      if(String(vals[i][0])===String(d.ID)){
+        const p = d.Periode || vals[i][11] || JSON.parse(getConfig()).periodeAktif || '';
+        sh.getRange(i+1,9,1,4).setValues([[d.Status,d.TanggalSetor,d.Catatan, p]]);
+        return JSON.stringify({ok:true});
+      }
+    } 
+    return JSON.stringify({ok:false,msg:'Tidak ditemukan'}); 
+  }
   catch(e){return JSON.stringify({ok:false,msg:e.message});}
 }
 function deleteHafalan(id) {
@@ -802,37 +821,43 @@ function setupDatabase() {
  */
 function saveRapotPdf(data) {
   try {
-    var html = data.html;
     var fileName = (data.fileName || 'Rapot') + '.pdf';
     var periode = data.periode || 'Default';
     var kelas = data.kelas || 'Umum';
     var tipePeserta = data.tipePeserta || 'Santri';
     
-    // Wrap HTML with proper styling for PDF
-    var fullHtml = '<!DOCTYPE html><html><head><meta charset="utf-8">'
-      + '<style>body{font-family:Arial,sans-serif;margin:20px;font-size:12px;} '
-      + '.badge{display:inline-block;padding:2px 6px;border-radius:4px;font-size:10px;} '
-      + '.badge-selesai{background:#dcfce7;color:#166534;} '
-      + '.badge-proses{background:#fef9c3;color:#854d0e;} '
-      + '.badge-belum{background:#fee2e2;color:#991b1b;}'
-      + '</style></head><body>' + html + '</body></html>';
+    var blob;
     
-    // Create PDF blob
-    var blob = HtmlService.createHtmlOutput(fullHtml)
-      .getBlob()
-      .setName(fileName);
+    if (data.pdfBase64) {
+      // Client-side generated PDF (html2canvas + jsPDF) - simpan langsung sebagai PDF
+      var pdfBytes = Utilities.base64Decode(data.pdfBase64);
+      blob = Utilities.newBlob(pdfBytes, 'application/pdf', fileName);
+    } else if (data.html) {
+      // Fallback: HTML file (akan muncul sebagai HTML di Drive, bukan PDF)
+      fileName = fileName.replace('.pdf', '.html');
+      var fullHtml = '<!DOCTYPE html><html><head><meta charset="utf-8">'
+        + '<style>body{font-family:Arial,sans-serif;margin:20px;font-size:12px;} '
+        + '.badge{display:inline-block;padding:2px 6px;border-radius:4px;font-size:10px;} '
+        + '.badge-selesai{background:#dcfce7;color:#166534;} '
+        + '.badge-proses{background:#fef9c3;color:#854d0e;} '
+        + '.badge-belum{background:#fee2e2;color:#991b1b;}'
+        + '</style></head><body>' + data.html + '</body></html>';
+      blob = Utilities.newBlob(fullHtml, 'text/html', fileName);
+    } else {
+      return { ok: false, msg: 'Tidak ada data PDF yang dikirim' };
+    }
     
-    // Build folder path: Markaz Quran / [Periode] / [Santri|Guru] / [Kelas|TahunPengabdian]
+    // Build folder path: Markaz Quran / [Periode] / [Santri|Guru] / [Kelas]
     var rootFolder = getOrCreateFolder(DriveApp.getRootFolder(), 'Markaz Quran');
     var periodeFolder = getOrCreateFolder(rootFolder, periode);
     
-    var typeFolder, file;
+    var file;
     if (tipePeserta === 'Guru' || tipePeserta === 'guru') {
-      typeFolder = getOrCreateFolder(periodeFolder, 'Guru');
-      var yearFolder = getOrCreateFolder(typeFolder, kelas); // kelas = tahun pengabdian for guru
+      var typeFolder = getOrCreateFolder(periodeFolder, 'Guru');
+      var yearFolder = getOrCreateFolder(typeFolder, kelas);
       file = yearFolder.createFile(blob);
     } else {
-      typeFolder = getOrCreateFolder(periodeFolder, 'Santri');
+      var typeFolder = getOrCreateFolder(periodeFolder, 'Santri');
       var kelasFolder = getOrCreateFolder(typeFolder, kelas);
       file = kelasFolder.createFile(blob);
     }

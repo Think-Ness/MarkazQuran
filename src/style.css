@@ -224,7 +224,16 @@ textarea{resize:vertical;min-height:80px;}
 .sidebar-overlay.show{opacity:1;pointer-events:all;}
 
 /* PRINT */
-@media print{.sidebar,.topbar,.no-print{display:none!important;}.page-body{padding:0;}}
+@media print{
+  html, body { height: auto !important; overflow: visible !important; }
+  .app-layout { display: block !important; height: auto !important; overflow: visible !important; }
+  .main-content { display: block !important; height: auto !important; overflow: visible !important; }
+  .page-body { padding: 0 !important; overflow: visible !important; height: auto !important; flex: none !important; }
+  .sidebar, .topbar, .no-print { display: none !important; }
+  #rapotPreviewCard { border: none !important; padding: 0 !important; max-width: 100% !important; }
+  .rapot-preview-container { box-shadow: none !important; margin: 0 !important; width: 100% !important; min-height: auto !important; padding: 0 !important; }
+  @page { size: A4 portrait; margin: 15mm; }
+}
 
 /* RESPONSIVE MOBILE */
 @media(max-width:768px) {

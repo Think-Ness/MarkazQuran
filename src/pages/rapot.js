@@ -677,63 +677,55 @@ function renderRapotPreview(r) {
   const namaBatch = sesiInfo ? sesiInfo.NamaSesi : (r.TipeSesi ? '-' : '');
 
   document.getElementById('rapotPreviewCard').innerHTML = `
-    <style>
-      .rapot-preview-container * { font-family: 'Inter', system-ui, -apple-system, sans-serif !important; }
-      @media print {
-        @page { size: A4; margin: 15mm; }
-        body { margin: 0; padding: 0; }
-        .rapot-preview-container { box-shadow: none !important; margin: 0 !important; width: 100% !important; min-height: auto !important; }
-      }
-    </style>
-    <div class="rapot-preview-container" style="background:#fff;padding:40px;border-radius:12px;box-shadow:0 10px 25px rgba(0,0,0,0.05);color:#334155;max-width:210mm;min-height:297mm;margin:0 auto;box-sizing:border-box;">
-    <div style="text-align:center;border-bottom:3px double #1b6b4a;padding-bottom:14px;margin-bottom:20px;">
-      <h1 style="font-size:24px;font-weight:800;color:#1b6b4a;margin:0;letter-spacing:1px;text-transform:uppercase;">MARKAZ QUR'AN</h1>
-      <p style="font-size:11px;color:#64748b;margin:4px 0 0;text-transform:uppercase;letter-spacing:1.5px;font-weight:600;">Lembaga Pendidikan &amp; Pembinaan Tahsin Tahfidz Qur'an Terpadu</p>
-      ${r.Periode ? `<p style="font-size:12px;color:#1b6b4a;margin:8px 0 0;font-weight:700;letter-spacing:1px;text-transform:uppercase;">PERIODE: ${r.Periode}</p>` : ''}
-      ${namaBatch && namaBatch !== '-' ? `<p style="font-size:12px;color:#d97706;margin:4px 0 0;font-weight:700;letter-spacing:1px;text-transform:uppercase;">BATCH / KELOMPOK: ${namaBatch}</p>` : ''}
-      <p style="font-size:14px;color:#0f172a;margin:12px 0 0;font-weight:800;text-transform:uppercase;border:1px solid #1b6b4a;display:inline-block;padding:4px 12px;border-radius:4px;">
-        ${isFinalRapot ? (isHafalan ? 'RAPOT HAFALAN AKHIR' : 'RAPOT EVALUASI AKHIR') : `HASIL ${finalRecord?.JenisTes.toUpperCase() || (isHafalan ? 'HAFALAN' : 'TES')}`}
+    <style>.rapot-preview-container * { font-family: 'Inter', system-ui, -apple-system, sans-serif !important; }</style>
+    <div id="rapotExportArea" class="rapot-preview-container" style="background:#fff;padding:28px 36px;color:#334155;max-width:210mm;margin:0 auto;box-sizing:border-box;">
+    <div style="text-align:center;border-bottom:3px double #1b6b4a;padding-bottom:10px;margin-bottom:14px;">
+      <h1 style="font-size:22px;font-weight:800;color:#1b6b4a;margin:0;letter-spacing:1px;text-transform:uppercase;">MARKAZ QUR'AN</h1>
+      <p style="font-size:10px;color:#64748b;margin:3px 0 0;text-transform:uppercase;letter-spacing:1.5px;font-weight:600;">Lembaga Pendidikan &amp; Pembinaan Tahsin Tahfidz Qur'an Terpadu</p>
+      ${r.Periode ? `<p style="font-size:11px;color:#1b6b4a;margin:5px 0 0;font-weight:700;letter-spacing:1px;text-transform:uppercase;">PERIODE: ${r.Periode}</p>` : ''}
+      ${namaBatch && namaBatch !== '-' ? `<p style="font-size:11px;color:#d97706;margin:3px 0 0;font-weight:700;letter-spacing:1px;text-transform:uppercase;">BATCH / KELOMPOK: ${namaBatch}</p>` : ''}
+      <p style="font-size:13px;color:#0f172a;margin:8px 0 0;font-weight:800;text-transform:uppercase;border:1px solid #1b6b4a;display:inline-block;padding:3px 12px;border-radius:4px;">
+        ${isFinalRapot ? (isHafalan ? 'RAPOT HAFALAN AKHIR' : 'RAPOT EVALUASI AKHIR') : `HASIL ${finalRecord?.JenisTes.toUpperCase() || 'TES'}`}
       </p>
     </div>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;font-size:13px;background:#f8fafc;padding:15px;border-radius:8px;border:1px solid #e2e8f0;">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;font-size:12px;background:#f8fafc;padding:10px 14px;border-radius:8px;border:1px solid #e2e8f0;">
       <div><table style="width:100%;border-collapse:collapse;">
-        <tr><td style="border:none;padding:4px 0;color:#64748b;width:100px;">Nama</td><td style="border:none;padding:4px 0;font-weight:700;color:#0f172a;">: ${r.NamaSantri}</td></tr>
-        <tr><td style="border:none;padding:4px 0;color:#64748b;">No. Stambuk</td><td style="border:none;padding:4px 0;font-family:monospace;font-weight:700;">: ${r.STambuk}</td></tr>
+        <tr><td style="border:none;padding:3px 0;color:#64748b;width:100px;">Nama</td><td style="border:none;padding:3px 0;font-weight:700;color:#0f172a;">: ${r.NamaSantri}</td></tr>
+        <tr><td style="border:none;padding:3px 0;color:#64748b;">No. Stambuk</td><td style="border:none;padding:3px 0;font-family:monospace;font-weight:700;">: ${r.STambuk}</td></tr>
       </table></div>
       <div><table style="width:100%;border-collapse:collapse;">
-        <tr><td style="border:none;padding:4px 0;color:#64748b;width:110px;">Kelas / Rayon</td><td style="border:none;padding:4px 0;font-weight:600;">: ${santriKelas}</td></tr>
-        <tr><td style="border:none;padding:4px 0;color:#64748b;">Predikat Akhir</td><td style="border:none;padding:4px 0;"><span class="badge ${kFinal.cls}" style="font-size:11px;font-weight:700;padding:2px 8px;">${kFinal.label}</span></td></tr>
+        <tr><td style="border:none;padding:3px 0;color:#64748b;width:110px;">Kelas</td><td style="border:none;padding:3px 0;font-weight:600;">: ${santriKelas}</td></tr>
+        <tr><td style="border:none;padding:3px 0;color:#64748b;">Predikat</td><td style="border:none;padding:3px 0;"><span class="badge ${kFinal.cls}">${kFinal.label}</span></td></tr>
       </table></div>
     </div>
 
-    <!-- Nilai Bacaan (Hide for Hafalan Sesi) -->
     ${!isHafalan ? `
-    <h4 style="font-size:12px;font-weight:700;color:#1b6b4a;margin:0 0 10px;border-bottom:2px solid #1b6b4a;padding-bottom:6px;text-transform:uppercase;">I. PENILAIAN TES BACAAN</h4>
+    <h4 style="font-size:11px;font-weight:700;color:#1b6b4a;margin:0 0 8px;border-bottom:2px solid #1b6b4a;padding-bottom:5px;text-transform:uppercase;">I. PENILAIAN TES BACAAN</h4>
     ${finalRecord ? `
-      <table style="width:100%;border-collapse:collapse;font-size:12px;border:1px solid #dee2e6;margin-bottom:16px;">
+      <table style="width:100%;border-collapse:collapse;font-size:11px;border:1px solid #dee2e6;margin-bottom:12px;">
         <thead><tr style="background:#f1f5f9;">
-          <th style="padding:10px 14px;text-align:left;font-weight:700;border:1px solid #dee2e6;">Indikator</th>
-          <th style="padding:10px 14px;text-align:center;font-weight:700;border:1px solid #dee2e6;width:90px;">Jml Kesalahan</th>
-          <th style="padding:10px 14px;text-align:center;font-weight:700;border:1px solid #dee2e6;width:120px;">Kategori</th>
+          <th style="padding:7px 12px;text-align:left;font-weight:700;border:1px solid #dee2e6;">Indikator</th>
+          <th style="padding:7px 12px;text-align:center;font-weight:700;border:1px solid #dee2e6;width:80px;">Jml Kesalahan</th>
+          <th style="padding:7px 12px;text-align:center;font-weight:700;border:1px solid #dee2e6;width:110px;">Kategori</th>
         </tr></thead>
         <tbody>
           ${inds.map((ind, i) => {
             const n = Number(finalRecord[`Ind${i + 1}`] ?? 0);
             const c = n === 0 ? '#16a34a' : (n <= 2 ? '#d97706' : '#dc2626');
             const st = n === 0 ? 'Tidak Ada' : (n <= 2 ? 'Sedikit' : 'Perlu Latihan');
-            return `<tr style="border-bottom:1px solid #e9ecef;">
-              <td style="padding:7px 14px;font-weight:600;color:#334155;border:1px solid #dee2e6;">${ind.label}</td>
-              <td style="padding:7px 14px;font-size:14px;font-weight:800;color:${c};text-align:center;border:1px solid #dee2e6;">${n}</td>
-              <td style="padding:7px 14px;text-align:center;border:1px solid #dee2e6;color:${c};font-weight:700;font-size:12px;">${st}</td>
-            </tr>`;
+            return '<tr style="border-bottom:1px solid #e9ecef;">'
+              + '<td style="padding:5px 12px;font-weight:600;color:#334155;border:1px solid #dee2e6;">' + ind.label + '</td>'
+              + '<td style="padding:5px 12px;font-size:13px;font-weight:800;color:' + c + ';text-align:center;border:1px solid #dee2e6;">' + n + '</td>'
+              + '<td style="padding:5px 12px;text-align:center;border:1px solid #dee2e6;color:' + c + ';font-weight:700;font-size:11px;">' + st + '</td>'
+              + '</tr>';
           }).join('')}
         </tbody>
         <tbody>
           <tr style="background:#f0fdf4;font-weight:700;">
-            <td style="padding:12px 14px;border:1px solid #dee2e6;font-size:14px;color:#1b6b4a;width:50%;">NILAI AKHIR ${isFinalRapot ? '(STANDAR LULUS)' : ''}</td>
-            <td colspan="2" style="padding:12px 14px;border:1px solid #dee2e6;text-align:center;">
-              <span style="font-size:26px;font-weight:800;color:#1b6b4a;">${finalNilai}</span>
+            <td style="padding:9px 12px;border:1px solid #dee2e6;font-size:13px;color:#1b6b4a;width:50%;">NILAI AKHIR ${isFinalRapot ? '(STANDAR LULUS)' : ''}</td>
+            <td colspan="2" style="padding:9px 12px;border:1px solid #dee2e6;text-align:center;">
+              <span style="font-size:22px;font-weight:800;color:#1b6b4a;">${finalNilai}</span>
               <span class="badge ${kFinal.cls}" style="font-size:11px;margin-left:8px;">${kFinal.label}</span>
             </td>
           </tr>
@@ -742,158 +734,233 @@ function renderRapotPreview(r) {
     ` : `<p style="color:#94a3b8;font-style:italic;">Belum ada data tes</p>`}
     ` : ''}
 
-    <!-- Hafalan -->
-    <h4 style="font-size:12px;font-weight:700;color:#d97706;margin:16px 0 10px;border-bottom:2px solid #d97706;padding-bottom:6px;text-transform:uppercase;">${isHafalan ? 'I.' : 'II.'} RINGKASAN HAFALAN</h4>
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;">
-      <div style="background:#fefce8;border:1px solid #fde68a;border-radius:8px;padding:12px;text-align:center;">
-        <div style="font-size:10px;font-weight:700;color:#d97706;text-transform:uppercase;">Total Target</div>
-        <div style="font-size:24px;font-weight:800;color:#d97706;">${allHf.length}</div>
-      </div>
-      <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:12px;text-align:center;">
-        <div style="font-size:10px;font-weight:700;color:#1b6b4a;text-transform:uppercase;">Selesai</div>
-        <div style="font-size:24px;font-weight:800;color:#1b6b4a;">${hfSelesai}</div>
-      </div>
-      <div style="background:#eff6ff;border:1px solid #93c5fd;border-radius:8px;padding:12px;text-align:center;">
-        <div style="font-size:10px;font-weight:700;color:#3b82f6;text-transform:uppercase;">Nilai Hafalan</div>
-        <div style="font-size:24px;font-weight:800;color:#3b82f6;">${hfPct}%</div>
-        <span class="badge ${kHf.cls}" style="font-size:10px;">${kHf.label}</span>
-      </div>
-    </div>
+    <!-- Hafalan - COMPACT INLINE ROW -->
+    <h4 style="font-size:11px;font-weight:700;color:#d97706;margin:10px 0 6px;border-bottom:2px solid #d97706;padding-bottom:4px;text-transform:uppercase;">${isHafalan ? 'I.' : 'II.'} RINGKASAN HAFALAN</h4>
+    <table style="width:100%;border-collapse:collapse;font-size:12px;border:1px solid #fde68a;margin-bottom:10px;">
+      <thead><tr style="background:#fefce8;">
+        <th style="padding:6px 12px;text-align:center;border:1px solid #fde68a;color:#92400e;font-weight:700;">Total Target</th>
+        <th style="padding:6px 12px;text-align:center;border:1px solid #fde68a;color:#92400e;font-weight:700;">Selesai</th>
+        <th style="padding:6px 12px;text-align:center;border:1px solid #fde68a;color:#92400e;font-weight:700;">Nilai Hafalan</th>
+        <th style="padding:6px 12px;text-align:center;border:1px solid #fde68a;color:#92400e;font-weight:700;">Predikat</th>
+      </tr></thead>
+      <tbody><tr style="background:#fffbeb;">
+        <td style="padding:7px 12px;text-align:center;border:1px solid #fde68a;font-size:18px;font-weight:800;color:#d97706;">${allHf.length}</td>
+        <td style="padding:7px 12px;text-align:center;border:1px solid #fde68a;font-size:18px;font-weight:800;color:#1b6b4a;">${hfSelesai}</td>
+        <td style="padding:7px 12px;text-align:center;border:1px solid #fde68a;font-size:18px;font-weight:800;color:#3b82f6;">${hfPct}%</td>
+        <td style="padding:7px 12px;text-align:center;border:1px solid #fde68a;"><span class="badge ${kHf.cls}" style="font-size:11px;font-weight:700;">${kHf.label}</span></td>
+      </tr></tbody>
+    </table>
 
     ${r.Catatan || (finalRecord && finalRecord.Catatan) ? `
-      <h4 style="font-size:12px;font-weight:700;color:#334155;margin:16px 0 6px;text-transform:uppercase;">Catatan:</h4>
-      <div style="font-size:12px;background:#f8fafc;padding:12px;border-radius:8px;border-left:4px solid #1b6b4a;border:1px solid #e2e8f0;line-height:1.5;color:#334155;">${r.Catatan || finalRecord.Catatan}</div>
+      <h4 style="font-size:11px;font-weight:700;color:#334155;margin:8px 0 4px;text-transform:uppercase;">Catatan:</h4>
+      <div style="font-size:11px;background:#f8fafc;padding:8px 12px;border-radius:6px;border-left:3px solid #1b6b4a;border:1px solid #e2e8f0;line-height:1.5;color:#334155;">${r.Catatan || finalRecord.Catatan}</div>
     ` : ''}
 
     <!-- Tanda Tangan -->
-    <div style="margin-top:35px;display:flex;justify-content:space-between;font-size:13px;padding:0 20px;">
-      <div style="text-align:center;width:200px;">
-        <p style="color:#475569;margin-bottom:65px;">Orang Tua / Wali Santri</p>
-        <p style="border-bottom:1.5px solid #475569;padding-bottom:3px;font-weight:700;color:#0f172a;display:inline-block;min-width:160px;"></p>
+    <div style="margin-top:24px;display:flex;justify-content:space-between;font-size:12px;padding:0 10px;">
+      <div style="text-align:center;width:190px;">
+        <p style="color:#475569;margin-bottom:52px;">Orang Tua / Wali Santri</p>
+        <p style="border-bottom:1.5px solid #475569;padding-bottom:3px;font-weight:700;color:#0f172a;display:inline-block;min-width:150px;"></p>
       </div>
-      <div style="text-align:center;width:220px;">
+      <div style="text-align:center;width:210px;">
         <p style="color:#475569;margin-bottom:0;">Kediri, ${tanggal}</p>
-        <p style="color:#475569;margin-top:2px;margin-bottom:${ttdUrl ? '10px' : '65px'};font-weight:500;">Wali Kelas / Penguji</p>
-        ${ttdUrl ? `<img src="${ttdUrl}" style="height:50px;margin-bottom:5px;" alt="TTD">` : ''}
-        <p style="border-bottom:1.5px solid #475569;padding-bottom:3px;font-weight:700;color:#0f172a;display:inline-block;min-width:160px;">${finalRecord ? (finalRecord.IDPenguji || penguji) : penguji}</p>
+        <p style="color:#475569;margin-top:2px;margin-bottom:${ttdUrl ? '8px' : '52px'};font-weight:500;">Wali Kelas / Penguji</p>
+        ${ttdUrl ? `<img src="${ttdUrl}" style="height:45px;margin-bottom:4px;" alt="TTD">` : ''}
+        <p style="border-bottom:1.5px solid #475569;padding-bottom:3px;font-weight:700;color:#0f172a;display:inline-block;min-width:150px;">${finalRecord ? (finalRecord.IDPenguji || penguji) : penguji}</p>
       </div>
     </div>
 
     <!-- PAGE 2: RIWAYAT / HISTORI -->
-    <div style="page-break-before: always; break-before: page; margin-top: 40px; padding-top: 40px; border-top: 2px dashed #cbd5e1;">
+    <div id="lampiranRapotPage" style="page-break-before: always; break-before: page; margin-top: 40px; padding-top: 40px; border-top: 2px dashed #cbd5e1;">
       <div style="text-align:center;margin-bottom:20px;">
         <h2 style="font-size:18px;font-weight:800;color:#1b6b4a;margin:0;letter-spacing:1px;text-transform:uppercase;">LAMPIRAN RIWAYAT EVALUASI</h2>
         <p style="font-size:12px;color:#64748b;margin:4px 0 0;">Detail Histori Perkembangan & Setoran Santri</p>
       </div>
 
-      <h4 style="font-size:12px;font-weight:700;color:#334155;margin:0 0 10px;text-transform:uppercase;">1. Riwayat Tes Bacaan</h4>
-      <table style="width:100%;border-collapse:collapse;font-size:11px;border:1px solid #dee2e6;margin-bottom:24px;">
-        <thead><tr style="background:#f1f5f9;color:#334155;">
-          <th style="padding:8px;text-align:left;border:1px solid #dee2e6;width:80px;">Tanggal</th>
-          <th style="padding:8px;text-align:left;border:1px solid #dee2e6;width:80px;">Jenis Tes</th>
-          <th style="padding:8px;text-align:center;border:1px solid #dee2e6;width:50px;">Nilai</th>
-          <th style="padding:8px;text-align:left;border:1px solid #dee2e6;">Detail Indikator (Kesalahan)</th>
-          <th style="padding:8px;text-align:left;border:1px solid #dee2e6;width:100px;">Penguji</th>
-        </tr></thead>
-        <tbody>
-          ${allTes.length ? allTes.map(t => {
-            const shortInds = ['Kelancaran','Makh. Huruf','Sifat Huruf',"Mad Thabi'i",'Mad >2 Har.','Ghunnah','Waqf/Ibtida','Gharib','Lagu','Lain'];
-            const det = inds.map((ind, i) => {
-              const v = Number(t[`Ind${i+1}`] || 0);
-              return v > 0 ? `<span style="display:inline-block;background:#fee2e2;color:#dc2626;padding:2px 4px;border-radius:4px;margin:2px;font-size:9px;">${shortInds[i]}: ${v}</span>` : '';
-            }).filter(Boolean).join('');
-            return `
-            <tr>
-              <td style="padding:6px 8px;border:1px solid #dee2e6;">${fmtDate(t.Tanggal)}</td>
-              <td style="padding:6px 8px;border:1px solid #dee2e6;font-weight:600;">${t.JenisTes}<br><span style="font-size:9px;color:#64748b;font-weight:400;">${t.NamaSurah}</span></td>
-              <td style="padding:6px 8px;border:1px solid #dee2e6;text-align:center;font-weight:800;font-size:14px;color:var(--primary);">${t.NilaiAkhir}</td>
-              <td style="padding:6px 8px;border:1px solid #dee2e6;">${det || '<span style="color:#16a34a;font-weight:600;font-size:10px;">Lancar (0 Kesalahan)</span>'}</td>
-              <td style="padding:6px 8px;border:1px solid #dee2e6;font-size:10px;">${t.IDPenguji}</td>
-            </tr>
-            `;
-          }).join('') : `<tr><td colspan="5" style="padding:10px;text-align:center;color:#94a3b8;font-style:italic;">Belum ada riwayat tes</td></tr>`}
-        </tbody>
-      </table>
+      <div id="lampiranGroupContainer">
+        ${(() => {
+          const shortInds = ['Kelancaran','Makh. Huruf','Sifat Huruf',"Mad Thabi'i",'Mad >2 Har.','Ghunnah','Waqf/Ibtida','Gharib','Lagu','Lain'];
+          const allPeriodes = [...new Set([...allTes, ...allHf].map(x => x.Periode || 'Periode Sebelumnya'))];
+          allPeriodes.sort((a,b) => {
+            if (a === 'Periode Sebelumnya') return 1;
+            if (b === 'Periode Sebelumnya') return -1;
+            return b.localeCompare(a); // Sort descending
+          });
 
-      <h4 style="font-size:12px;font-weight:700;color:#334155;margin:0 0 10px;text-transform:uppercase;">2. Daftar Setoran Hafalan</h4>
-      <table style="width:100%;border-collapse:collapse;font-size:11px;border:1px solid #dee2e6;margin-bottom:16px;">
-        <thead><tr style="background:#f1f5f9;color:#334155;">
-          <th style="padding:8px;text-align:left;border:1px solid #dee2e6;">Materi / Surah</th>
-          <th style="padding:8px;text-align:left;border:1px solid #dee2e6;">Rentang Ayat</th>
-          <th style="padding:8px;text-align:center;border:1px solid #dee2e6;">Status</th>
-          <th style="padding:8px;text-align:left;border:1px solid #dee2e6;">Tgl Selesai</th>
-        </tr></thead>
-        <tbody>
-          ${allHf.length ? allHf.map(h => `
-            <tr>
-              <td style="padding:6px 8px;border:1px solid #dee2e6;font-weight:600;">${h.NamaSurah}</td>
-              <td style="padding:6px 8px;border:1px solid #dee2e6;">${h.AyatDari && h.AyatSampai ? h.AyatDari + ' - ' + h.AyatSampai : 'Semua Ayat'}</td>
-              <td style="padding:6px 8px;border:1px solid #dee2e6;text-align:center;">
-                <span style="color:${h.Status === 'Selesai' ? '#166534' : '#854d0e'};font-weight:600;">${h.Status}</span>
-              </td>
-              <td style="padding:6px 8px;border:1px solid #dee2e6;color:#64748b;">${h.TanggalSetor ? fmtDate(h.TanggalSetor) : '-'}</td>
-            </tr>
-          `).join('') : `<tr><td colspan="4" style="padding:10px;text-align:center;color:#94a3b8;font-style:italic;">Belum ada setoran hafalan</td></tr>`}
-        </tbody>
-      </table>
+          return allPeriodes.map(p => {
+            const tList = allTes.filter(t => (t.Periode || 'Periode Sebelumnya') === p);
+            const hList = allHf.filter(h => (h.Periode || 'Periode Sebelumnya') === p);
+
+            let html = `
+            <div style="margin-bottom:20px;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,0.05);border:1px solid #e2e8f0;overflow:hidden;">
+              <div style="background:#f8fafc;border-bottom:2px solid #1b6b4a;padding:8px 14px;display:flex;align-items:center;gap:8px;">
+                <span style="background:#1b6b4a;color:#fff;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">PERIODE</span>
+                <span style="font-weight:700;font-size:12px;color:#0f172a;">${p}</span>
+              </div>
+              <div style="padding:12px;background:#fff;">`;
+
+            // Tes Bacaan Table
+            if (tList.length > 0) {
+              html += `<h5 style="font-size:10px;font-weight:700;color:#64748b;margin:0 0 6px;text-transform:uppercase;">• Riwayat Tes Bacaan</h5>
+              <table style="width:100%;border-collapse:collapse;font-size:10px;border:1px solid #dee2e6;margin-bottom:12px;">
+                <thead><tr style="background:#f1f5f9;color:#334155;">
+                  <th style="padding:6px;text-align:left;border:1px solid #dee2e6;width:75px;">Tanggal</th>
+                  <th style="padding:6px;text-align:left;border:1px solid #dee2e6;width:75px;">Jenis Tes</th>
+                  <th style="padding:6px;text-align:center;border:1px solid #dee2e6;width:40px;">Nilai</th>
+                  <th style="padding:6px;text-align:left;border:1px solid #dee2e6;">Catatan / Indikator (Kesalahan)</th>
+                  <th style="padding:6px;text-align:left;border:1px solid #dee2e6;width:90px;">Penguji</th>
+                </tr></thead>
+                <tbody>
+                  ${tList.map(t => {
+                    const det = inds.map((ind, i) => {
+                      const v = Number(t[`Ind${i+1}`] || 0);
+                      return v > 0 ? `<span style="display:inline-block;background:#fee2e2;color:#dc2626;padding:1px 3px;border-radius:3px;margin:1px;font-size:8px;">${shortInds[i]}: ${v}</span>` : '';
+                    }).filter(Boolean).join('');
+                    return `<tr>
+                      <td style="padding:5px 6px;border:1px solid #dee2e6;">${fmtDate(t.Tanggal)}</td>
+                      <td style="padding:5px 6px;border:1px solid #dee2e6;font-weight:600;">${t.JenisTes}<br><span style="font-size:8px;color:#64748b;font-weight:400;">${t.NamaSurah}</span></td>
+                      <td style="padding:5px 6px;border:1px solid #dee2e6;text-align:center;font-weight:800;font-size:12px;color:#1b6b4a;">${t.NilaiAkhir}</td>
+                      <td style="padding:5px 6px;border:1px solid #dee2e6;">${det || '<span style="color:#16a34a;font-weight:600;font-size:9px;">Lancar (0 Kesalahan)</span>'}</td>
+                      <td style="padding:5px 6px;border:1px solid #dee2e6;font-size:9px;color:#475569;">${t.IDPenguji}</td>
+                    </tr>`;
+                  }).join('')}
+                </tbody>
+              </table>`;
+            }
+
+            // Hafalan Table
+            if (hList.length > 0) {
+              html += `<h5 style="font-size:10px;font-weight:700;color:#64748b;margin:0 0 6px;text-transform:uppercase;">• Setoran Hafalan</h5>
+              <table style="width:100%;border-collapse:collapse;font-size:10px;border:1px solid #dee2e6;">
+                <thead><tr style="background:#f1f5f9;color:#334155;">
+                  <th style="padding:6px;text-align:left;border:1px solid #dee2e6;">Surah / Materi</th>
+                  <th style="padding:6px;text-align:left;border:1px solid #dee2e6;width:90px;">Rentang</th>
+                  <th style="padding:6px;text-align:center;border:1px solid #dee2e6;width:60px;">Status</th>
+                  <th style="padding:6px;text-align:left;border:1px solid #dee2e6;width:75px;">Tgl Selesai</th>
+                </tr></thead>
+                <tbody>
+                  ${hList.map(h => `<tr>
+                    <td style="padding:5px 6px;border:1px solid #dee2e6;font-weight:600;">${h.NamaSurah}</td>
+                    <td style="padding:5px 6px;border:1px solid #dee2e6;color:#475569;">${h.AyatDari && h.AyatSampai ? h.AyatDari + ' - ' + h.AyatSampai : 'Semua'}</td>
+                    <td style="padding:5px 6px;border:1px solid #dee2e6;text-align:center;">
+                      <span style="display:inline-block;padding:2px 4px;border-radius:3px;font-size:8px;font-weight:600;background:${h.Status === 'Selesai' ? '#dcfce7' : '#fef9c3'};color:${h.Status === 'Selesai' ? '#166534' : '#854d0e'};">${h.Status}</span>
+                    </td>
+                    <td style="padding:5px 6px;border:1px solid #dee2e6;color:#64748b;">${h.TanggalSetor ? fmtDate(h.TanggalSetor) : '-'}</td>
+                  </tr>`).join('')}
+                </tbody>
+              </table>`;
+            }
+
+            html += `</div></div>`;
+            return html;
+          }).join('');
+        })()}
+      </div>
     </div>
     </div>
   `;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// SAVE PDF TO DRIVE
-// ═══════════════════════════════════════════════════════════════════════════
 async function savePdfToDrive() {
   const previewCard = document.getElementById('rapotPreviewCard');
   if (!previewCard || previewCard.querySelector('.no-data') || !currentRecord) {
     return showToast('Preview rapot terlebih dahulu', 'error');
   }
-  
-  const stambuk = currentRecord.STambuk;
-  const nama = currentRecord.NamaSantri.replace(/[^a-zA-Z0-9 ]/g, '');
-  const periode = (currentRecord.Periode || 'Default').replace(/[\/\\]/g, '-');
-  const fileName = `Rapot_${stambuk}_${nama}`.replace(/\s+/g, '_');
-  const folderPath = `Markaz Quran/Rapot/${periode}`;
 
-  const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
-<style>
-  body { font-family: 'Inter', Arial, sans-serif; margin: 0; padding: 0; color: #334155; }
-  table { border-collapse: collapse; }
-  .badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; }
-  .badge-selesai { background: #dcfce7; color: #166534; }
-  .badge-proses { background: #fef9c3; color: #854d0e; }
-  .badge-belum { background: #fee2e2; color: #991b1b; }
-</style>
-</head><body>
-  <div style="padding: 20px;">
-    ${previewCard.innerHTML}
-  </div>
-</body></html>`;
+  if (typeof html2canvas === 'undefined' || typeof window.jspdf === 'undefined') {
+    return showToast('Library PDF belum siap, coba refresh halaman', 'error');
+  }
 
   const btn = document.getElementById('btnSavePdfDrive');
-  btn.disabled = true; btn.innerText = 'Menyimpan ke Drive...';
+  const origHTML = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerText = '⏳ Membuat PDF...';
+
+  // Resolve data peserta untuk memastikan folder kelas akurat
+  const tipePeserta = currentRecord._tipePeserta || 'Santri';
+  const p = resolvePeserta(currentRecord.STambuk, tipePeserta);
+  const kelas = currentRecord._kelas || (p && p.kelas) || (p && p.TahunPengabdian) || 'Umum';
   
+  // Nama file = nama santri/guru saja
+  const namaMurni = (p && p.nama) || currentRecord.NamaSantri || currentRecord.NamaGuru || '';
+  const fileName = namaMurni.trim().replace(/\s+/g, '_') || `Rapot_${currentRecord.STambuk || 'Unknown'}`;
+
   try {
-    const res = await saveRapotPdf({ 
-      html, 
-      fileName, 
+    const rapotEl = document.getElementById('rapotExportArea') || previewCard.firstElementChild || previewCard;
+    const lampiranEl = rapotEl.querySelector('#lampiranRapotPage');
+
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const margin = 10;
+    const usableW = pdf.internal.pageSize.getWidth() - margin * 2;
+    const usableH = pdf.internal.pageSize.getHeight() - margin * 2;
+
+    const captureOpts = {
+      scale: 2,
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: '#ffffff',
+      logging: false,
+    };
+
+    const addCanvasToPdf = (canvas, isFirstPage) => {
+      if (!isFirstPage) pdf.addPage();
+      const imgH = (canvas.height * usableW) / canvas.width;
+      let yOff = 0, pg = 0;
+      while (yOff < imgH) {
+        if (pg > 0) pdf.addPage();
+        const srcY = Math.round((yOff / imgH) * canvas.height);
+        const srcH = Math.min(Math.round((usableH / imgH) * canvas.height), canvas.height - srcY);
+        const sc = document.createElement('canvas');
+        sc.width = canvas.width; sc.height = srcH;
+        const cx = sc.getContext('2d');
+        cx.fillStyle = '#fff'; cx.fillRect(0, 0, sc.width, sc.height);
+        cx.drawImage(canvas, 0, -srcY, canvas.width, canvas.height);
+        pdf.addImage(sc.toDataURL('image/jpeg', 0.92), 'JPEG', margin, margin, usableW, Math.min((srcH / canvas.height) * imgH, usableH));
+        yOff += usableH; pg++;
+      }
+    };
+
+    if (lampiranEl) {
+      // Sembunyikan lampiran saat capture halaman pertama
+      lampiranEl.style.display = 'none';
+      const canvas1 = await html2canvas(rapotEl, captureOpts);
+      
+      // Tampilkan lagi dan capture hanya lampirannya
+      lampiranEl.style.display = 'block';
+      const canvas2 = await html2canvas(lampiranEl, captureOpts);
+
+      addCanvasToPdf(canvas1, true);
+      addCanvasToPdf(canvas2, false);
+    } else {
+      const canvas = await html2canvas(rapotEl, captureOpts);
+      addCanvasToPdf(canvas, true);
+    }
+
+    const pdfBase64 = pdf.output('datauristring').split(',')[1];
+    btn.innerText = '⬆️ Mengupload ke Drive...';
+
+    const res = await saveRapotPdf({
+      pdfBase64,
+      fileName,
       periode: currentRecord.Periode || 'Default',
-      kelas: currentRecord._kelas || currentRecord.Kelas || 'Umum',
-      tipePeserta: currentRecord._tipePeserta || 'Santri'
+      kelas: kelas,
+      tipePeserta: tipePeserta
     });
+
     if (res.ok) {
-      showToast('✓ PDF tersimpan ke Google Drive');
+      showToast('✓ PDF rapot berhasil disimpan ke Google Drive!');
       if (res.url) window.open(res.url, '_blank');
     } else {
       showToast(res.msg || 'Gagal menyimpan PDF', 'error');
     }
   } catch (e) {
+    console.error('savePdfToDrive:', e);
     showToast('Error: ' + e.message, 'error');
   }
-  
+
   btn.disabled = false;
-  btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Simpan PDF ke Drive`;
+  btn.innerHTML = origHTML;
 }
 
 // ── Expose for sesi-ujian integration ───────────────────────────────────────
